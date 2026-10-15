@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -78,6 +79,7 @@ type Worker struct {
 	stopOnce     sync.Once
 	stopped      chan struct{}
 	stopErr      error
+	exited       atomic.Bool
 }
 
 // StartWorker binds to the existing pull Durable; it never creates a Consumer.
@@ -111,7 +113,10 @@ func (c *Client) StartWorkerWithOptions(ctx context.Context, key string, handler
 	}
 	child, cancel := context.WithCancel(ctx)
 	w := &Worker{subscription: sub, done: make(chan error, 1), cancel: cancel, stopped: make(chan struct{})}
-	go func() { w.done <- c.runWorker(child, resolved, sub, handler, options) }()
+	go func() {
+		defer w.exited.Store(true)
+		w.done <- c.runWorker(child, resolved, sub, handler, options)
+	}()
 	return w, nil
 }
 
@@ -281,6 +286,12 @@ func buildQuarantineRecord(builder func(*nats.Msg, *nats.MsgMetadata, string) (*
 		}
 	}()
 	return builder(msg, meta, reason)
+}
+
+// Ready indicates that the worker is still fetching on an active subscription.
+// Applications must also check broker topology and database readiness.
+func (w *Worker) Ready() bool {
+	return w != nil && !w.exited.Load() && w.subscription != nil && w.subscription.IsValid()
 }
 
 // Stop cancels the fetch loop and waits for in-flight handlers before returning.
