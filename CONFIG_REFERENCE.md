@@ -124,3 +124,32 @@ reconnect, sustained HA and production operations need separate evidence.
 
 **No standalone repository, version bump, tag, broker migration, or production
 switch is authorized by this document.**
+
+## Optional application-owned Worker delivery policy (2026-10-15)
+
+`StartWorker(ctx, key, handler)` retains its original zero-option
+behavior: retryable handler errors remain unacknowledged until the broker's
+AckWait/BackOff. Applications requiring an explicit retry policy may invoke
+`StartWorkerWithOptions(ctx, key, handler, natskit.WorkerOptions{...})`.
+
+- `RetryDelay` enables `NakWithDelay` on retryable failures; zero
+  preserves the original broker-controlled retry behavior.
+- `BuildQuarantine(message, metadata, reason)` supplies application-owned
+  replay headers and a stable NATS Msg-Id. NATS Kit rejects a changed body,
+  destination subject, missing Msg-Id, builder errors and builder panics.
+  Quarantine PubAck must confirm the dedicated configured Stream before the
+  original can be acknowledged.
+- `Observe(DeliveryEvent)` reports action, subject, byte count, broker
+  stream, sequence and attempt number. The original body is never provided
+  through this event. The callback may panic without affecting ACK handling;
+  applications must avoid logging `event.Err` because it may contain PII.
+- A failed Quarantine PubAck leaves the source unacknowledged. At the
+  broker MaxDeliver ceiling, an operator still needs reliable advisory
+  capture and reconciliation. This library has **no** exactly-once
+  processing or lossless automatic replay guarantee.
+
+The CRA-specific configuration, NAK delay and legacy Replay headers are
+implemented in `internal/natsadapter`, **not** within NATS Kit. This
+preserves library reusability for SARA and other Go services. No existing
+CRA production runtime path is switched to NATS Kit by these APIs.
+
