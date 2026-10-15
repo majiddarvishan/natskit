@@ -1,0 +1,126 @@
+# NATS Kit — configuration and independent module reference
+
+## Module boundary
+
+Go import path: `github.com/Shayan-Pardaz/natskit`. Source currently lives at
+`modules/natskit` under CRA Bridge, but it does **not** import CRA, protobuf,
+PostgreSQL, business models, product loggers or metrics. The standalone
+repository is not created or tagged yet.
+
+The application may wrap the library JSON in `{"nats": {...}}`, but pass
+**only** the nested `nats` JSON object to `natskit.Decode`. Unknown JSON
+fields are errors. The reference manifest is
+[`config.example.json`](config.example.json).
+
+## Connection
+
+- `instance_id`: nonempty, unique per process. `${NATS_INSTANCE_ID}` is
+  expanded from the environment. The connection name becomes `nats-<id>`.
+- `connection.urls`: nonempty NATS URL list. `connection.name` is not
+  supported. Userinfo credentials in URLs are rejected.
+- `connection.drain_timeout`: positive Go duration; default `30s`.
+- `connection.security`: fully optional. `creds_file` and `tls` can be
+  configured separately. `tls.ca_file` is optional; a client certificate
+  needs **both** `cert_file` and `key_file`. Refer to external file paths,
+  do not commit credentials into JSON.
+- `subjects`: alias -> actual wire NATS subject/pattern. Publishing requires
+  a concrete (non-wildcard) subject. Application-specific names belong in
+  the adapter, never as defaults in the library.
+
+## JetStream resource model
+
+`jetstream.enabled=false` leaves the library using Core NATS, without
+JetStream verification or resource creation. When enabled:
+
+- `namespace` identifies the deployment, not the replica. Keep it stable
+  across all replicas.
+- `provisioning` must be `verify` or `operator_only`. **Neither** enables
+  automatic provisioning on `Connect`.
+- `profiles[NAME]` stores reusable Stream settings.
+- `defaults.stream` -> selected `profiles[NAME]` -> `streams[KEY]`
+  is the precedence chain for Stream fields.
+- `defaults.consumer` -> `consumers[KEY]` is Consumer precedence;
+  `defaults.worker` -> `consumers[KEY].worker` is Worker precedence.
+- `streams[KEY].subjects` and `consumers[KEY].filter` are arrays of subject
+  **aliases**, not arbitrary literal subjects. Consumer filters must be fully
+  covered by their Stream.
+- Stream physical name defaults to `UPPERCASE_NAMESPACE_KEY`; optional
+  `streams[KEY].name` preserves an existing, explicitly supplied physical
+  name **without renaming or migrating** it.
+- Durable physical name defaults to `UPPERCASE_NAMESPACE_KEY`; optional
+  `consumers[KEY].durable` preserves an existing Durable name.
+  Duplicate physical names are rejected.
+- Stream settings include `storage` (file/memory), `retention`
+  (limits/workqueue/interest), `discard` (old/new), `max_age`,
+  `duplicate_window`, `max_bytes`, `max_msg_size`, `replicas` (1/3/5).
+- Consumer settings support pull, explicit ACK, deliver policy all/new,
+  positive `max_deliver`, `max_ack_pending`, `ack_wait` or `backoff`
+  (not both). Workqueue Consumer filter overlaps are rejected.
+- Worker settings: `fetch_batch`, `max_concurrency`,
+  `ack_sync_timeout`, `in_progress_interval` (shorter than ACK deadline).
+  Maximum concurrency is **per process**; broker `max_ack_pending` is
+  shared across processes on the same Durable.
+
+## Runtime and operator boundary
+
+1. Validate entirely offline with `cfg.Resolve()`.
+2. An approved, separate operator command may invoke
+   `natskit.ProvisionMissing(ctx, js, resolved)` using a dedicated
+   administrative identity. It **never** updates or deletes existing
+   Stream/Consumer resources; it refuses drift.
+3. Application `natskit.Connect(ctx,cfg)` verifies existing topology,
+   **never creates it**, then returns a Client.
+4. Publish with `client.Publish(ctx, alias, payload, stableMessageID)`.
+   A PubAck confirms storage only. In Core mode no broker deduplication
+   is available.
+5. Start pull Workers with `client.StartWorker(ctx, consumerKey, handler)`.
+   Return nil **only** after all application side effects are durably
+   committed. Stop workers and close the Client cleanly.
+6. Permanent/decode failures may be sent to a dedicated, PubAck-confirmed
+   Quarantine Stream before source ACK. Normal errors are not ACKed and
+   redelivery can occur. Applications must persist their own idempotency.
+   Lossless MaxDeliver advisory capture/reconciliation is **not implemented**:
+   optional automatic reconciliation is rejected. A best-effort watcher and
+   manual copy utility exist; manual copy is not source reconciliation.
+
+A different namespace alone does not isolate physical wire subjects in one
+account. Distinct deployments must avoid overlapping Stream subject captures,
+or use separate NATS accounts/subjects. This library does not provide
+exactly-once business execution, database transactions or an automatic
+migration from existing broker topologies.
+
+## Independent verification
+
+```sh
+cd modules/natskit
+go mod tidy
+git diff --exit-code -- go.mod go.sum
+test -z "$(gofmt -l *.go)"
+go test -count=1 ./...
+go test -race -count=1 ./...
+go vet ./...
+```
+
+Disposable broker integration tests run when `nats-server` is installed.
+The GitHub Actions module workflow installs version 2.14.6 explicitly,
+launches an isolated loopback server with temporary storage, and checks
+shared Durable, redelivery, and Quarantine failure paths. Broader crash,
+reconnect, sustained HA and production operations need separate evidence.
+
+## Independent repository and version plan
+
+1. Complete the CRA runtime adapter and verify legacy five-Stream and grouped
+   three-Stream compatibility without changing actual broker identities,
+   deduplication keys, ACK behavior or customer defaults.
+2. Run independent library unit/race/vet and disposable integration tests;
+   add full public API docs and a reproducible release checklist.
+3. Create a separate repository only after explicit owner authorization;
+   preserve Go module path exactly `github.com/Shayan-Pardaz/natskit`.
+4. Move the module at a coordinated commit, remove CRA's temporary local
+   `replace` directive, and pin CRA to an approved tagged semantic version.
+5. Start with a pre-1.0 minor version after API/stability review. Any
+   incompatible public API changes before 1.0 require an explicit review;
+   document compatibility guarantees before a 1.0 release.
+
+**No standalone repository, version bump, tag, broker migration, or production
+switch is authorized by this document.**

@@ -7,7 +7,7 @@ moved into its own Git repository with the same module path in a later release.
 ## Config model
 
 Pass the JSON nested under the application's `nats` key to `natskit.Decode`.
-See [`config.example.json`](config.example.json). Stream inheritance order:
+See [`config.example.json`](config.example.json) and [configuration/reference guide](CONFIG_REFERENCE.md). Stream inheritance order:
 `defaults.stream < profiles[stream.profile] < streams[NAME]`;
 Consumer/Worker inheritance: `defaults.consumer < consumer[NAME]`,
 `defaults.worker < consumer[NAME].worker`. Keys used under `subjects`, `streams`,
@@ -46,9 +46,10 @@ read-only naming capability, **not** permission for an automatic migration.
 
 ## Scope and safety
 
-- This is an **independent module foundation**, not yet a CRA runtime adapter.
-  The old CRA JetStream path is left in place intentionally until an explicit,
-  tested adapter and migration can preserve existing Stream/Durable identities.
+- This is an **independent module foundation** with an offline CRA compatibility
+  adapter in `internal/natsadapter`. The existing CRA publisher and consumers
+  remain authoritative until full runtime compatibility is tested, with no
+  implicit broker rename, migration, or production switch.
 - `pull` Durable with explicit ACK is implemented for multi-replica workers.
   Push, ACK-all, and ACK-none modes are rejected instead of silently degrading.
 - `WorkQueuePolicy` forbids overlapping Consumer filters. Acks remove entries
