@@ -111,11 +111,14 @@ func sortedCopy(a []string) []string { b := slices.Clone(a); sort.Strings(b); re
 func sameStream(a, b nats.StreamConfig) bool {
 	return a.Name == b.Name && sortedEqual(a.Subjects, b.Subjects) && a.Storage == b.Storage &&
 		a.Retention == b.Retention && a.Discard == b.Discard && a.MaxAge == b.MaxAge &&
-		a.Duplicates == b.Duplicates && a.MaxBytes == b.MaxBytes && a.MaxMsgSize == b.MaxMsgSize && a.Replicas == b.Replicas
+		a.Duplicates == b.Duplicates && a.MaxBytes == b.MaxBytes && a.MaxMsgSize == b.MaxMsgSize && a.Replicas == b.Replicas &&
+		a.NoAck == b.NoAck && a.DiscardNewPerSubject == b.DiscardNewPerSubject
 }
 
 func sameConsumer(a, b nats.ConsumerConfig) bool {
 	return a.Durable == b.Durable && a.FilterSubject == b.FilterSubject && sortedEqual(a.FilterSubjects, b.FilterSubjects) &&
 		a.AckPolicy == b.AckPolicy && a.DeliverPolicy == b.DeliverPolicy && a.AckWait == b.AckWait &&
-		a.MaxDeliver == b.MaxDeliver && a.MaxAckPending == b.MaxAckPending && slices.Equal(a.BackOff, b.BackOff)
+		a.MaxDeliver == b.MaxDeliver && a.MaxAckPending == b.MaxAckPending && slices.Equal(a.BackOff, b.BackOff) &&
+		a.ReplayPolicy == b.ReplayPolicy && a.DeliverSubject == b.DeliverSubject &&
+		a.DeliverGroup == b.DeliverGroup && a.HeadersOnly == b.HeadersOnly
 }

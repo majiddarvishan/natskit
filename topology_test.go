@@ -247,3 +247,38 @@ func TestExplicitPhysicalNamesRejectCollisionsAndInvalidNames(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyDetectsUnsafeUntrackedStreamAndConsumerDrift(t *testing.T) {
+	cfg := sample(t)
+	resolved, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := resolved.Streams["RESULTS"]
+	changedStream := stream
+	changedStream.NoAck = true
+	if sameStream(changedStream, stream) {
+		t.Fatal("stream NoAck drift must be rejected")
+	}
+	changedStream = stream
+	changedStream.DiscardNewPerSubject = true
+	if sameStream(changedStream, stream) {
+		t.Fatal("per-subject discard drift must be rejected")
+	}
+	consumer := resolved.Consumers["RESULTS_WORKER"].Config
+	changedConsumer := consumer
+	changedConsumer.ReplayPolicy = nats.ReplayOriginalPolicy
+	if sameConsumer(changedConsumer, consumer) {
+		t.Fatal("consumer replay policy drift must be rejected")
+	}
+	changedConsumer = consumer
+	changedConsumer.DeliverSubject = "unexpected.push.subject"
+	if sameConsumer(changedConsumer, consumer) {
+		t.Fatal("consumer unexpectedly switched to push delivery")
+	}
+	changedConsumer = consumer
+	changedConsumer.HeadersOnly = true
+	if sameConsumer(changedConsumer, consumer) {
+		t.Fatal("headers-only consumer must not silently drop payload")
+	}
+}
