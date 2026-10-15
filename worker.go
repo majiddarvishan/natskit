@@ -251,7 +251,7 @@ func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string, o
 	record.Header.Set("Natskit-Reason", reason)
 	record.Header.Set(nats.MsgIdHdr, "natskit-quarantine:"+metadata.Stream+":"+strconv.FormatUint(metadata.Sequence.Stream, 10))
 	if options.BuildQuarantine != nil {
-		record, err = options.BuildQuarantine(msg, metadata, reason)
+		record, err = buildQuarantineRecord(options.BuildQuarantine, msg, metadata, reason)
 		if err != nil {
 			return fmt.Errorf("build quarantine: %w", err)
 		}
@@ -267,6 +267,18 @@ func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string, o
 		return errors.New("quarantine PubAck did not confirm destination Stream")
 	}
 	return nil
+}
+
+// buildQuarantineRecord keeps a misbehaving application hook from crashing
+// the worker; source delivery is never ACKed if record creation fails.
+func buildQuarantineRecord(builder func(*nats.Msg, *nats.MsgMetadata, string) (*nats.Msg, error), msg *nats.Msg, meta *nats.MsgMetadata, reason string) (record *nats.Msg, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			record = nil
+			err = fmt.Errorf("quarantine builder panic: %v", recovered)
+		}
+	}()
+	return builder(msg, meta, reason)
 }
 
 // Stop cancels the fetch loop and waits for in-flight handlers before returning.
