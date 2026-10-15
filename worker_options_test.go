@@ -105,3 +105,13 @@ func TestDisposableObserverPanicDoesNotPreventACK(t *testing.T) {
 		}
 	}
 }
+
+func TestQuarantineBuilderPanicIsNotAnAcknowledgment(t *testing.T) {
+	builder := func(*nats.Msg, *nats.MsgMetadata, string) (*nats.Msg, error) {
+		panic("application quarantine encoder panic")
+	}
+	record, err := buildQuarantineRecord(builder, &nats.Msg{}, &nats.MsgMetadata{}, "permanent_error")
+	if err == nil || record != nil {
+		t.Fatalf("panic silently allowed quarantine record: record=%v err=%v", record, err)
+	}
+}
