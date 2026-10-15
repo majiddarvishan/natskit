@@ -19,6 +19,17 @@ import (
 // exercise. Uses the same shared pull Durable with two app replicas and
 // deliberately kills the currently elected results Stream leader.
 func TestDisposableThreeNodeJetStreamLeaderFailover(t *testing.T) {
+	disposableThreeNodeLeaderFailure(t, true)
+}
+
+// This is a different gate from controlled manual rebind: both original
+// workers and their original subscriptions must recover without Stop,
+// StartWorker, or an externally scheduled runtime restart.
+func TestDisposableThreeNodeJetStreamTransparentPullRecovery(t *testing.T) {
+	disposableThreeNodeLeaderFailure(t, false)
+}
+
+func disposableThreeNodeLeaderFailure(t *testing.T, controlledRebind bool) {
 	bin, err := exec.LookPath("nats-server")
 	if err != nil {
 		t.Skip("nats-server binary required for isolated HA test")
@@ -272,34 +283,36 @@ cluster {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	// A controlled replica restart is the explicit recovery path after
-	// stream leader change. This does not claim that a pre-failover pull
-	// subscription always survives a broker election without a rebind.
-	if err := workerA.Stop(); err != nil {
-		t.Logf("old worker A shutdown after leader loss: %v", err)
-	}
-	if err := workerB.Stop(); err != nil {
-		t.Logf("old worker B shutdown after leader loss: %v", err)
-	}
-	// Rebind both pull subscriptions using their original reconnecting
-	// client connections. A full fresh Connect would verify *all* Streams;
-	// unrelated Stream leadership may still be converging at this point.
-	rebind := func(client *Client) *Worker {
-		for {
-			worker, bindErr := client.StartWorker(ctx, "RESULTS_WORKER", handler)
-			if bindErr == nil {
-				return worker
-			}
-			if ctx.Err() != nil {
-				t.Fatalf("cannot rebind shared Durable after leader change: %v", bindErr)
-			}
-			time.Sleep(100 * time.Millisecond)
+	if controlledRebind {
+		// A controlled replica restart is the explicit recovery path after
+		// stream leader change. This does not claim that a pre-failover pull
+		// subscription always survives a broker election without a rebind.
+		if err := workerA.Stop(); err != nil {
+			t.Logf("old worker A shutdown after leader loss: %v", err)
 		}
+		if err := workerB.Stop(); err != nil {
+			t.Logf("old worker B shutdown after leader loss: %v", err)
+		}
+		// Rebind both pull subscriptions using their original reconnecting
+		// client connections. A full fresh Connect would verify *all* Streams;
+		// unrelated Stream leadership may still be converging at this point.
+		rebind := func(client *Client) *Worker {
+			for {
+				worker, bindErr := client.StartWorker(ctx, "RESULTS_WORKER", handler)
+				if bindErr == nil {
+					return worker
+				}
+				if ctx.Err() != nil {
+					t.Fatalf("cannot rebind shared Durable after leader change: %v", bindErr)
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+		resumedWorkerA := rebind(first)
+		defer resumedWorkerA.Stop()
+		resumedWorkerB := rebind(second)
+		defer resumedWorkerB.Stop()
 	}
-	resumedWorkerA := rebind(first)
-	defer resumedWorkerA.Stop()
-	resumedWorkerB := rebind(second)
-	defer resumedWorkerB.Stop()
 	js = survivorJS
 	publish(6, 12)
 	wait(12)
