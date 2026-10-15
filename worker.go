@@ -73,7 +73,7 @@ func (opts WorkerOptions) emit(action string, msg *nats.Msg, err error) {
 }
 
 type Worker struct {
-	subscription *nats.Subscription
+	subscription atomic.Pointer[nats.Subscription]
 	done         chan error
 	cancel       context.CancelFunc
 	stopOnce     sync.Once
@@ -112,16 +112,23 @@ func (c *Client) StartWorkerWithOptions(ctx context.Context, key string, handler
 		return nil, fmt.Errorf("bind durable %s: %w", resolved.Config.Durable, err)
 	}
 	child, cancel := context.WithCancel(ctx)
-	w := &Worker{subscription: sub, done: make(chan error, 1), cancel: cancel, stopped: make(chan struct{})}
+	w := &Worker{done: make(chan error, 1), cancel: cancel, stopped: make(chan struct{})}
+	w.subscription.Store(sub)
 	go func() {
 		defer w.exited.Store(true)
-		w.done <- c.runWorker(child, resolved, sub, handler, options)
+		w.done <- c.runWorker(child, resolved, sub, w, handler, options)
 	}()
 	return w, nil
 }
 
-func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.Subscription, handler Handler, options WorkerOptions) error {
-	defer sub.Unsubscribe()
+func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.Subscription, w *Worker, handler Handler, options WorkerOptions) error {
+	defer func() { _ = sub.Unsubscribe() }()
+	// Rebind only the existing durable, never create resources. Detect
+	// a new Stream leader by read-only inspection after prolonged idle
+	// fetches; broker outages cannot trigger an unbounded bind loop.
+	boundLeader := c.workerStreamLeader(ctx, def.Stream)
+	lastBind := time.Now()
+	idleFetches := 0
 	limiter := make(chan struct{}, def.Worker.MaxConcurrency)
 	var active sync.WaitGroup
 	defer active.Wait()
@@ -151,6 +158,32 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 				return nil
 			}
 			if errors.Is(err, nats.ErrTimeout) || errors.Is(err, context.DeadlineExceeded) {
+				idleFetches++
+				if idleFetches >= 3 && time.Since(lastBind) >= 3*time.Second && c.Conn.IsConnected() {
+					// Once per bounded cooldown: either a verified leader
+					// changed or pending messages have stalled despite idle
+					// fetches. Avoid rebind on failed/unknown broker probes.
+					nextLeader, hasPending, checked := c.workerRebindProbe(ctx, def)
+					if checked && ((boundLeader != "" && nextLeader != "" && nextLeader != boundLeader) || hasPending) {
+						fresh, bindErr := c.JS.PullSubscribe(def.Config.FilterSubject, def.Config.Durable,
+							nats.Bind(def.Stream, def.Config.Durable))
+						if bindErr == nil {
+							previous := sub
+							sub = fresh
+							w.subscription.Store(fresh)
+							_ = previous.Unsubscribe()
+							options.emit("rebound", nil, nil)
+							boundLeader = nextLeader
+						} else {
+							options.emit("rebind_error", nil, bindErr)
+						}
+						lastBind = time.Now()
+					} else if checked && nextLeader != "" {
+						boundLeader = nextLeader
+						lastBind = time.Now()
+					}
+					idleFetches = 0
+				}
 				continue
 			}
 			if errors.Is(err, nats.ErrBadSubscription) ||
@@ -168,6 +201,7 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 				continue
 			}
 		}
+		idleFetches = 0
 		for _, message := range msgs {
 			limiter <- struct{}{}
 			active.Add(1)
@@ -179,6 +213,37 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 		}
 	}
 	return nil
+}
+
+// workerRebindProbe is intentionally read-only. If the broker cannot
+// confirm the Consumer and Stream, the worker preserves its subscription
+// and lets normal connection recovery continue.
+func (c *Client) workerRebindProbe(ctx context.Context, def ResolvedConsumer) (string, bool, bool) {
+	checkCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer cancel()
+	stream, err := c.JS.StreamInfo(def.Stream, nats.Context(checkCtx))
+	if err != nil || stream == nil {
+		return "", false, false
+	}
+	consumer, err := c.JS.ConsumerInfo(def.Stream, def.Config.Durable, nats.Context(checkCtx))
+	if err != nil || consumer == nil {
+		return "", false, false
+	}
+	leader := ""
+	if stream.Cluster != nil {
+		leader = stream.Cluster.Leader
+	}
+	return leader, consumer.NumPending > 0, true
+}
+
+func (c *Client) workerStreamLeader(ctx context.Context, stream string) string {
+	checkCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer cancel()
+	info, err := c.JS.StreamInfo(stream, nats.Context(checkCtx))
+	if err == nil && info != nil && info.Cluster != nil {
+		return info.Cluster.Leader
+	}
+	return ""
 }
 
 func (c *Client) processMessage(ctx context.Context, def ResolvedConsumer, msg *nats.Msg, handler Handler, options WorkerOptions) {
@@ -304,7 +369,7 @@ func buildQuarantineRecord(builder func(*nats.Msg, *nats.MsgMetadata, string) (*
 // Ready indicates that the worker is still fetching on an active subscription.
 // Applications must also check broker topology and database readiness.
 func (w *Worker) Ready() bool {
-	return w != nil && !w.exited.Load() && w.subscription != nil && w.subscription.IsValid()
+	return w != nil && !w.exited.Load() && w.subscription.Load() != nil && w.subscription.Load().IsValid()
 }
 
 // Stop cancels the fetch loop and waits for in-flight handlers before returning.
