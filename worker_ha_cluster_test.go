@@ -31,6 +31,7 @@ func TestDisposableThreeNodeJetStreamLeaderFailover(t *testing.T) {
 	}
 	urls := make([]string, 0, nodes)
 	var commands [nodes]*exec.Cmd
+	var logPaths [nodes]string
 	for i := 0; i < nodes; i++ {
 		urls = append(urls, "nats://127.0.0.1:"+strconv.Itoa(clientPorts[i]))
 	}
@@ -60,9 +61,18 @@ cluster {
 			t.Fatal(err)
 		}
 		cmd := exec.Command(bin, "-c", file)
-		if err := cmd.Start(); err != nil {
+		logPaths[i] = filepath.Join(dir, fmt.Sprintf("node-%d.log", i))
+		logfile, err := os.Create(logPaths[i])
+		if err != nil {
 			t.Fatal(err)
 		}
+		cmd.Stdout = logfile
+		cmd.Stderr = logfile
+		if err := cmd.Start(); err != nil {
+			_ = logfile.Close()
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = logfile.Close() })
 		commands[i] = cmd
 	}
 	stop := func(i int) {
@@ -112,6 +122,15 @@ cluster {
 			break
 		}
 		if ctx.Err() != nil {
+			for i := 0; i < nodes; i++ {
+				log, readErr := os.ReadFile(logPaths[i])
+				if readErr == nil {
+					if len(log) > 3500 {
+						log = log[len(log)-3500:]
+					}
+					t.Logf("disposable JetStream node %d diagnostic: %s", i, log)
+				}
+			}
 			t.Fatalf("three-node JetStream provisioning failed: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
