@@ -118,29 +118,59 @@ cluster {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var initialProvisionError error
-	for {
-		err = ProvisionMissing(ctx, js, resolved)
-		if err != nil && initialProvisionError == nil {
-			initialProvisionError = err
-		}
-		if err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			for i := 0; i < nodes; i++ {
-				log, readErr := os.ReadFile(logPaths[i])
-				if readErr == nil {
-					if len(log) > 3500 {
-						log = log[len(log)-3500:]
-					}
-					t.Logf("disposable JetStream node %d diagnostic: %s", i, log)
-				}
+	// A disposable, operator-owned test cluster is permitted to create
+	// Resources directly. Production Connect always remains verify-only.
+	// Avoid using a single 50-second Context on a cluster bootstrap API
+	// probe: a missing resource before the metadata leader is ready can
+	// otherwise pin the entire test until the overall deadline.
+	provision := func(action string, apply func() error) {
+		var firstErr error
+		for {
+			err := apply()
+			if err == nil {
+				return
 			}
-			t.Fatalf("three-node JetStream provisioning failed: initial=%v last=%v", initialProvisionError, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			if ctx.Err() != nil {
+				for i := 0; i < nodes; i++ {
+					log, readErr := os.ReadFile(logPaths[i])
+					if readErr == nil {
+						if len(log) > 3500 {
+							log = log[len(log)-3500:]
+						}
+						t.Logf("disposable JetStream node %d diagnostic: %s", i, log)
+					}
+				}
+				t.Fatalf("three-node %s failed: initial=%v last=%v", action, firstErr, err)
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
-		time.Sleep(200 * time.Millisecond)
 	}
+	provision("JetStream account readiness", func() error {
+		_, err := js.AccountInfo(nats.MaxWait(time.Second))
+		return err
+	})
+	for _, key := range sortedStreamKeys(resolved.Streams) {
+		stream := resolved.Streams[key]
+		provision("Stream "+stream.Name, func() error {
+			_, err := js.AddStream(&stream, nats.MaxWait(2*time.Second))
+			return err
+		})
+	}
+	for _, key := range sortedConsumerKeys(resolved.Consumers) {
+		consumer := resolved.Consumers[key]
+		provision("Consumer "+consumer.Config.Durable, func() error {
+			_, err := js.AddConsumer(consumer.Stream, &consumer.Config, nats.MaxWait(2*time.Second))
+			return err
+		})
+	}
+	provision("verified topology", func() error {
+		checkCtx, stopCheck := context.WithTimeout(ctx, 2*time.Second)
+		defer stopCheck()
+		return Verify(checkCtx, js, resolved)
+	})
 	first, err := Connect(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
