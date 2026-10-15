@@ -111,13 +111,19 @@ cluster {
 	cfg.JetStream.Defaults.Consumer.Backoff = []string{"250ms", "500ms"}
 	cfg.JetStream.Defaults.Worker.InProgressInterval = "100ms"
 	replicas := 3
+	maxBytes := int64(16 << 20) // Three disposable Streams fit in 128 MB / node.
 	cfg.JetStream.Defaults.Stream.Replicas = &replicas
+	cfg.JetStream.Defaults.Stream.MaxBytes = &maxBytes
 	resolved, err := cfg.Resolve()
 	if err != nil {
 		t.Fatal(err)
 	}
+	var initialProvisionError error
 	for {
 		err = ProvisionMissing(ctx, js, resolved)
+		if err != nil && initialProvisionError == nil {
+			initialProvisionError = err
+		}
 		if err == nil {
 			break
 		}
@@ -131,7 +137,7 @@ cluster {
 					t.Logf("disposable JetStream node %d diagnostic: %s", i, log)
 				}
 			}
-			t.Fatalf("three-node JetStream provisioning failed: %v", err)
+			t.Fatalf("three-node JetStream provisioning failed: initial=%v last=%v", initialProvisionError, err)
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
