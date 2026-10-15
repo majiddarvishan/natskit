@@ -44,7 +44,11 @@ func TestDisposableWorkerRecoversAfterBrokerRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { if stop != nil { stop() } }()
+	defer func() {
+		if stop != nil {
+			stop()
+		}
+	}()
 	deadline := time.Now().Add(8 * time.Second)
 	for {
 		conn, err := nats.Connect(url, nats.NoReconnect(), nats.Timeout(150*time.Millisecond))
