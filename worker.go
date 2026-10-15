@@ -1,6 +1,7 @@
 package natskit
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -27,6 +28,48 @@ func (e *ProcessingError) Unwrap() error { return e.Err }
 func DecodeError(err error) error        { return &ProcessingError{Kind: "decode_error", Err: err} }
 func PermanentError(err error) error     { return &ProcessingError{Kind: "permanent_error", Err: err} }
 
+// WorkerOptions customizes delivery semantics without coupling the library to
+// any application's error types, monitoring, or replay header conventions.
+// The zero value preserves the original AckWait/BackOff behavior.
+type WorkerOptions struct {
+	// RetryDelay enables NAK-with-delay for retryable failures. Zero leaves
+	// the message unacknowledged until its consumer AckWait/BackOff expires.
+	RetryDelay time.Duration
+	// BuildQuarantine may build an application-compatible immutable record.
+	// It must preserve original bytes, target subject, and a stable Msg-Id.
+	BuildQuarantine func(*nats.Msg, *nats.MsgMetadata, string) (*nats.Msg, error)
+	// Observe is best-effort reporting and must not affect delivery decisions.
+	Observe func(DeliveryEvent)
+}
+
+// DeliveryEvent contains only broker metadata; original payloads are omitted.
+type DeliveryEvent struct {
+	Action     string
+	Subject    string
+	Stream     string
+	Sequence   uint64
+	Deliveries uint64
+	Err        error
+}
+
+func (opts WorkerOptions) emit(action string, msg *nats.Msg, err error) {
+	if opts.Observe == nil {
+		return
+	}
+	e := DeliveryEvent{Action: action, Err: err}
+	if msg != nil {
+		e.Subject = msg.Subject
+		if meta, metaErr := msg.Metadata(); metaErr == nil {
+			e.Stream = meta.Stream
+			e.Sequence = meta.Sequence.Stream
+			e.Deliveries = meta.NumDelivered
+		}
+	}
+	// An observability callback may not disrupt durable message handling.
+	defer func() { _ = recover() }()
+	opts.Observe(e)
+}
+
 type Worker struct {
 	subscription *nats.Subscription
 	done         chan error
@@ -39,6 +82,15 @@ type Worker struct {
 // StartWorker binds to the existing pull Durable; it never creates a Consumer.
 // Multiple instances using the same namespace and consumer key share the cursor.
 func (c *Client) StartWorker(ctx context.Context, key string, handler Handler) (*Worker, error) {
+	return c.StartWorkerWithOptions(ctx, key, handler, WorkerOptions{})
+}
+
+// StartWorkerWithOptions binds the same existing durable, with explicit
+// per-application retry/quarantine policy and delivery observability.
+func (c *Client) StartWorkerWithOptions(ctx context.Context, key string, handler Handler, options WorkerOptions) (*Worker, error) {
+	if options.RetryDelay < 0 {
+		return nil, errors.New("retry delay must not be negative")
+	}
 	if c.JS == nil {
 		return nil, errors.New("JetStream is disabled")
 	}
@@ -58,11 +110,11 @@ func (c *Client) StartWorker(ctx context.Context, key string, handler Handler) (
 	}
 	child, cancel := context.WithCancel(ctx)
 	w := &Worker{subscription: sub, done: make(chan error, 1), cancel: cancel, stopped: make(chan struct{})}
-	go func() { w.done <- c.runWorker(child, resolved, sub, handler) }()
+	go func() { w.done <- c.runWorker(child, resolved, sub, handler, options) }()
 	return w, nil
 }
 
-func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.Subscription, handler Handler) error {
+func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.Subscription, handler Handler, options WorkerOptions) error {
 	defer sub.Unsubscribe()
 	limiter := make(chan struct{}, def.Worker.MaxConcurrency)
 	var active sync.WaitGroup
@@ -103,14 +155,14 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 			go func(msg *nats.Msg) {
 				defer active.Done()
 				defer func() { <-limiter }()
-				c.processMessage(ctx, def, msg, handler)
+				c.processMessage(ctx, def, msg, handler, options)
 			}(message)
 		}
 	}
 	return nil
 }
 
-func (c *Client) processMessage(ctx context.Context, def ResolvedConsumer, msg *nats.Msg, handler Handler) {
+func (c *Client) processMessage(ctx context.Context, def ResolvedConsumer, msg *nats.Msg, handler Handler, options WorkerOptions) {
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stop := make(chan struct{})
@@ -125,38 +177,65 @@ func (c *Client) processMessage(ctx context.Context, def ResolvedConsumer, msg *
 				case <-child.Done():
 					return
 				case <-ticker.C:
-					_ = msg.InProgress()
+					if err := msg.InProgress(); err != nil {
+						options.emit("in_progress_error", msg, err)
+					}
 				}
 			}
 		}()
 	}
 	err := callHandler(child, msg, handler)
 	close(stop)
-	// The application determines when its own transaction is committed; only
-	// a nil handler result permits the library to acknowledge delivery.
 	if err == nil {
-		ackCtx, ackCancel := context.WithTimeout(context.Background(), def.Worker.AckSyncTimeout)
-		defer ackCancel()
-		_ = msg.AckSync(nats.Context(ackCtx)) // unconfirmed ACK is naturally redelivered; handler must be idempotent
+		c.ackMessage(msg, def.Worker.AckSyncTimeout, options)
 		return
 	}
+	options.emit("handler_error", msg, err)
 	var classified *ProcessingError
+	reason := ""
 	if errors.As(err, &classified) && c.Topology.Quarantine != nil && c.Topology.Quarantine.On[classified.Kind] {
-		if c.quarantine(ctx, msg, classified.Kind) == nil {
-			ackCtx, ackCancel := context.WithTimeout(context.Background(), def.Worker.AckSyncTimeout)
-			defer ackCancel()
-			_ = msg.AckSync(nats.Context(ackCtx))
-			return
+		reason = classified.Kind
+	}
+	if reason == "" && c.Topology.Quarantine != nil && c.Topology.Quarantine.On["max_deliver"] {
+		if meta, metaErr := msg.Metadata(); metaErr == nil && meta.NumDelivered >= uint64(def.Config.MaxDeliver) {
+			reason = "max_deliver"
 		}
 	}
-	// Do not ACK or NAK a retryable failure. Let the broker's configured
-	// ACK deadline / BackOff schedule control redelivery across replicas.
-	// NAK would bypass the configured BackOff schedule.
+	if reason != "" {
+		if quarantineErr := c.quarantine(ctx, msg, reason, options); quarantineErr == nil {
+			options.emit("quarantined", msg, nil)
+			c.ackMessage(msg, def.Worker.AckSyncTimeout, options)
+			return
+		} else {
+			options.emit("quarantine_error", msg, quarantineErr)
+		}
+	}
+	if options.RetryDelay > 0 && ctx.Err() == nil {
+		if nakErr := msg.NakWithDelay(options.RetryDelay); nakErr != nil {
+			options.emit("nak_error", msg, nakErr)
+		} else {
+			options.emit("naked", msg, nil)
+		}
+	}
+	// With no configured RetryDelay, let the broker AckWait/BackOff schedule
+	// redelivery. At MaxDeliver with failed quarantine, preserve unacked origin
+	// and report failure for operator reconciliation; never ACK data loss.
 }
 
-// quarantine stores the original immutable message bytes with stable origin
-// identity. PubAck must confirm the configured dead-letter Stream before ACK.
-func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string) error {
+func (c *Client) ackMessage(msg *nats.Msg, timeout time.Duration, options WorkerOptions) {
+	ackCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := msg.AckSync(nats.Context(ackCtx)); err != nil {
+		options.emit("ack_error", msg, err)
+		return
+	}
+	options.emit("acked", msg, nil)
+}
+
+// quarantine stores the original immutable bytes with stable origin identity.
+// Application builders can supply replay-compatible headers, but may not
+// modify the body, subject, or bypass the destination Stream PubAck.
+func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string, options WorkerOptions) error {
 	q := c.Topology.Quarantine
 	if q == nil {
 		return errors.New("quarantine is not configured")
@@ -165,12 +244,21 @@ func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string) e
 	if err != nil {
 		return err
 	}
-	record := &nats.Msg{Subject: q.Subject, Data: msg.Data, Header: nats.Header{}}
+	record := &nats.Msg{Subject: q.Subject, Data: append([]byte(nil), msg.Data...), Header: nats.Header{}}
 	record.Header.Set("Natskit-Origin-Stream", metadata.Stream)
 	record.Header.Set("Natskit-Origin-Sequence", strconv.FormatUint(metadata.Sequence.Stream, 10))
 	record.Header.Set("Natskit-Origin-Subject", msg.Subject)
 	record.Header.Set("Natskit-Reason", reason)
 	record.Header.Set(nats.MsgIdHdr, "natskit-quarantine:"+metadata.Stream+":"+strconv.FormatUint(metadata.Sequence.Stream, 10))
+	if options.BuildQuarantine != nil {
+		record, err = options.BuildQuarantine(msg, metadata, reason)
+		if err != nil {
+			return fmt.Errorf("build quarantine: %w", err)
+		}
+		if record == nil || record.Subject != q.Subject || !bytes.Equal(record.Data, msg.Data) || record.Header == nil || record.Header.Get(nats.MsgIdHdr) == "" {
+			return errors.New("quarantine builder must preserve destination, original bytes, and stable message ID")
+		}
+	}
 	ack, err := c.JS.PublishMsg(record, nats.Context(ctx))
 	if err != nil {
 		return err
