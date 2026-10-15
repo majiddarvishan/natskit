@@ -101,8 +101,8 @@ func (c *Client) Subject(alias string) (string, error) {
 // not provide a storage acknowledgement and leaves JetStream false.
 type PublishReceipt struct {
 	JetStream bool
-	Stream string
-	Sequence uint64
+	Stream    string
+	Sequence  uint64
 	Duplicate bool
 }
 
