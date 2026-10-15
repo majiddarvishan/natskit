@@ -43,8 +43,8 @@ func TestDisposableQuarantineBuilderRejectsMutatedPayload(t *testing.T) {
 			BuildQuarantine: func(msg *nats.Msg, _ *nats.MsgMetadata, _ string) (*nats.Msg, error) {
 				return &nats.Msg{
 					Subject: client.Topology.Quarantine.Subject,
-					Data: []byte("re-encoded"),
-					Header: nats.Header{nats.MsgIdHdr: []string{"invalid-copy"}},
+					Data:    []byte("re-encoded"),
+					Header:  nats.Header{nats.MsgIdHdr: []string{"invalid-copy"}},
 				}, nil
 			},
 		})
