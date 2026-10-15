@@ -97,21 +97,38 @@ func (c *Client) Subject(alias string) (string, error) {
 // Publish uses Core NATS by default and PubAck-confirmed JetStream if enabled.
 // A stable messageID must be provided by the application for retrying durable
 // commands. A PubAck confirms storage, not downstream business processing.
+// PublishReceipt contains only confirmed broker metadata. Core NATS does
+// not provide a storage acknowledgement and leaves JetStream false.
+type PublishReceipt struct {
+	JetStream bool
+	Stream string
+	Sequence uint64
+	Duplicate bool
+}
+
+// Publish retains backward compatibility for application callers.
 func (c *Client) Publish(ctx context.Context, alias string, payload []byte, messageID string) error {
+	_, err := c.PublishConfirmed(ctx, alias, payload, messageID)
+	return err
+}
+
+// PublishConfirmed reports actual JetStream PubAck metadata, not execution
+// success in any downstream application.
+func (c *Client) PublishConfirmed(ctx context.Context, alias string, payload []byte, messageID string) (PublishReceipt, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return PublishReceipt{}, err
 	}
 	subject, err := c.Subject(alias)
 	if err != nil {
-		return err
+		return PublishReceipt{}, err
 	}
 	if c.JS == nil {
 		if messageID != "" { /* Core NATS does not implement deduplication. */
 		}
 		if err := c.Conn.Publish(subject, payload); err != nil {
-			return err
+			return PublishReceipt{}, err
 		}
-		return c.Conn.FlushWithContext(ctx)
+		return PublishReceipt{}, c.Conn.FlushWithContext(ctx)
 	}
 	target := ""
 	for _, stream := range c.Topology.Streams {
@@ -123,7 +140,7 @@ func (c *Client) Publish(ctx context.Context, alias string, payload []byte, mess
 		}
 	}
 	if target == "" {
-		return fmt.Errorf("subject %q not covered by configured Streams", alias)
+		return PublishReceipt{}, fmt.Errorf("subject %q not covered by configured Streams", alias)
 	}
 	msg := &nats.Msg{Subject: subject, Data: payload}
 	if messageID != "" {
@@ -132,12 +149,12 @@ func (c *Client) Publish(ctx context.Context, alias string, payload []byte, mess
 	}
 	ack, err := c.JS.PublishMsg(msg, nats.Context(ctx))
 	if err != nil {
-		return fmt.Errorf("publish JetStream: %w", err)
+		return PublishReceipt{}, fmt.Errorf("publish JetStream: %w", err)
 	}
 	if ack == nil || ack.Stream != target {
-		return fmt.Errorf("PubAck did not confirm configured Stream %s", target)
+		return PublishReceipt{}, fmt.Errorf("PubAck did not confirm configured Stream %s", target)
 	}
-	return nil
+	return PublishReceipt{JetStream: true, Stream: ack.Stream, Sequence: ack.Sequence, Duplicate: ack.Duplicate}, nil
 }
 
 func (c *Client) Close() error {
