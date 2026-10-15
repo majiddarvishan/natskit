@@ -81,4 +81,10 @@ go test -race -count=1 ./...
 go vet ./...
 ```
 
-No live resources are created or changed by tests in this initial foundation.
+Unit tests never use production resources. Integration tests launch a
+`nats-server` executable bound to a random local port with a temporary data
+directory. They cover two replicas sharing a Durable, handler failure with
+redelivery before ACK, and quarantine PubAck failure without acknowledging the
+origin. They skip if the binary is unavailable; the isolated CI job explicitly
+installs it. These do **not** establish full crash/reconnect/fault readiness
+or exactly-once delivery, and never act on operational brokers.
