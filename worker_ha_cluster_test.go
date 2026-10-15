@@ -87,7 +87,7 @@ cluster {
 			stop(i)
 		}
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
 	defer cancel()
 	var nc *nats.Conn
 	for {
