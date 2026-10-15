@@ -49,7 +49,10 @@ func (c *Client) StartWorker(ctx context.Context, key string, handler Handler) (
 	if !ok {
 		return nil, fmt.Errorf("unknown consumer %q", key)
 	}
-	sub, err := c.JS.PullSubscribe("", resolved.Config.Durable, nats.Bind(resolved.Stream, resolved.Config.Durable))
+	// nats.go verifies a single-filter Durable against the subscription
+	// subject. Empty is only valid when the Durable uses FilterSubjects.
+	subject := resolved.Config.FilterSubject
+	sub, err := c.JS.PullSubscribe(subject, resolved.Config.Durable, nats.Bind(resolved.Stream, resolved.Config.Durable))
 	if err != nil {
 		return nil, fmt.Errorf("bind durable %s: %w", resolved.Config.Durable, err)
 	}
