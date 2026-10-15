@@ -281,28 +281,24 @@ cluster {
 	if err := workerB.Stop(); err != nil {
 		t.Logf("old worker B shutdown after leader loss: %v", err)
 	}
-	cfg.Connection.URLs = survivors
-	cfg.InstanceID = "cra-ha-recovered-a"
-	recoveredA, err := Connect(ctx, cfg)
-	if err != nil {
-		t.Fatalf("rebind first replica to surviving quorum: %v", err)
+	// Rebind both pull subscriptions using their original reconnecting
+	// client connections. A full fresh Connect would verify *all* Streams;
+	// unrelated Stream leadership may still be converging at this point.
+	rebind := func(client *Client) *Worker {
+		for {
+			worker, bindErr := client.StartWorker(ctx, "RESULTS_WORKER", handler)
+			if bindErr == nil {
+				return worker
+			}
+			if ctx.Err() != nil {
+				t.Fatalf("cannot rebind shared Durable after leader change: %v", bindErr)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
-	defer recoveredA.Close()
-	cfg.InstanceID = "cra-ha-recovered-b"
-	recoveredB, err := Connect(ctx, cfg)
-	if err != nil {
-		t.Fatalf("rebind second replica to surviving quorum: %v", err)
-	}
-	defer recoveredB.Close()
-	resumedWorkerA, err := recoveredA.StartWorker(ctx, "RESULTS_WORKER", handler)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resumedWorkerA := rebind(first)
 	defer resumedWorkerA.Stop()
-	resumedWorkerB, err := recoveredB.StartWorker(ctx, "RESULTS_WORKER", handler)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resumedWorkerB := rebind(second)
 	defer resumedWorkerB.Stop()
 	js = survivorJS
 	publish(6, 12)
