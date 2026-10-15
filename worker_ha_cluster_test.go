@@ -278,6 +278,20 @@ cluster {
 	if err != nil || info.State.Msgs != 12 {
 		t.Fatalf("leader failover lost or duplicated persisted result: state=%+v err=%v", info, err)
 	}
+	// Remove quorum AFTER successful leader failover. A three-replica
+	// Stream with only one surviving server must not claim a confirmed
+	// PubAck. This tests fail-closed semantics, not cluster repair.
+	for i := 0; i < nodes; i++ {
+		if i != leader && fmt.Sprintf("cra-ha-%d", i) != newLeader {
+			stop(i)
+			break
+		}
+	}
+	lostCtx, stopAttempt := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer stopAttempt()
+	if err := first.Publish(lostCtx, "results", []byte("quorum-loss-probe"), "cra-ha-quorum-loss"); err == nil {
+		t.Fatal("publisher returned success without JetStream Stream quorum")
+	}
 }
 
 func haFreePort(t *testing.T) int {
