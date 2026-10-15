@@ -1,0 +1,43 @@
+{
+  "connection": {
+    "urls": ["nats://127.0.0.1:4222"],
+    "drain_timeout": "30s"
+  },
+  "instance_id": "${NATS_INSTANCE_ID}",
+  "subjects": {
+    "commands": "v1.commands",
+    "cancel": "v1.cancel",
+    "results": "v1.results",
+    "cancel_results": "v1.cancel.results",
+    "quarantine": "v1.quarantine"
+  },
+  "jetstream": {
+    "enabled": true,
+    "namespace": "SERVICE_A",
+    "provisioning": "verify",
+    "profiles": {
+      "work_queue": {"retention": "workqueue", "discard": "new", "max_age": "24h", "duplicate_window": "2m"},
+      "events": {"retention": "limits", "discard": "old", "max_age": "168h"},
+      "dead_letter": {"retention": "limits", "discard": "new", "max_age": "720h"}
+    },
+    "streams": {
+      "COMMANDS": {"profile": "work_queue", "subjects": ["commands", "cancel"]},
+      "RESULTS": {"profile": "events", "subjects": ["results", "cancel_results"]},
+      "QUARANTINE": {"profile": "dead_letter", "subjects": ["quarantine"], "max_msg_size": 16384}
+    },
+    "defaults": {
+      "stream": {"storage": "file", "replicas": 1, "max_bytes": 1073741824, "max_msg_size": 4096},
+      "consumer": {"mode": "pull", "ack_policy": "explicit", "max_deliver": 12, "max_ack_pending": 128, "backoff": ["30s", "1m", "2m", "5m", "10m"]},
+      "worker": {"fetch_batch": 8, "max_concurrency": 8, "ack_sync_timeout": "3s", "in_progress_interval": "10s"}
+    },
+    "consumers": {
+      "RESULTS_WORKER": {"stream": "RESULTS", "filter": ["results"]},
+      "CANCEL_RESULTS_WORKER": {"stream": "RESULTS", "filter": ["cancel_results"], "worker": {"fetch_batch": 2, "max_concurrency": 2}}
+    },
+    "quarantine": {
+      "subject": "quarantine", "stream": "QUARANTINE",
+      "on": ["decode_error", "permanent_error", "max_deliver"],
+      "reconciliation": {"enabled": false, "interval": "1m"}
+    }
+  }
+}
