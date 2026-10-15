@@ -268,7 +268,38 @@ cluster {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	_ = newLeader
+	// A controlled replica restart is the explicit recovery path after
+	// stream leader change. This does not claim that a pre-failover pull
+	// subscription always survives a broker election without a rebind.
+	if err := workerA.Stop(); err != nil {
+		t.Logf("old worker A shutdown after leader loss: %v", err)
+	}
+	if err := workerB.Stop(); err != nil {
+		t.Logf("old worker B shutdown after leader loss: %v", err)
+	}
+	cfg.Connection.URLs = survivors
+	cfg.InstanceID = "cra-ha-recovered-a"
+	recoveredA, err := Connect(ctx, cfg)
+	if err != nil {
+		t.Fatalf("rebind first replica to surviving quorum: %v", err)
+	}
+	defer recoveredA.Close()
+	cfg.InstanceID = "cra-ha-recovered-b"
+	recoveredB, err := Connect(ctx, cfg)
+	if err != nil {
+		t.Fatalf("rebind second replica to surviving quorum: %v", err)
+	}
+	defer recoveredB.Close()
+	resumedWorkerA, err := recoveredA.StartWorker(ctx, "RESULTS_WORKER", handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resumedWorkerA.Stop()
+	resumedWorkerB, err := recoveredB.StartWorker(ctx, "RESULTS_WORKER", handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resumedWorkerB.Stop()
 	js = survivorJS
 	publish(6, 12)
 	wait(12)
