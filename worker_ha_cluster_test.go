@@ -237,18 +237,39 @@ cluster {
 		t.Fatalf("unexpected cluster leader %q", stream.Cluster.Leader)
 	}
 	stop(leader)
-	// A quorum remains; confirm actual leader change before publishing.
+	// Inspect failover from a FRESH connection to an explicitly live
+	// server. The original observer may itself be connected to the
+	// killed node and its reconnect wait must not mask quorum health.
+	var survivors []string
+	for i, url := range urls {
+		if i != leader {
+			survivors = append(survivors, url)
+		}
+	}
+	survivorConn, err := nats.Connect(strings.Join(survivors, ","), nats.Timeout(time.Second))
+	if err != nil {
+		t.Fatalf("cannot connect to surviving quorum: %v", err)
+	}
+	defer survivorConn.Close()
+	survivorJS, err := survivorConn.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var newLeader string
 	for {
-		current, err := js.StreamInfo(resolved.Consumers["RESULTS_WORKER"].Stream, nats.Context(ctx))
-		if err == nil && current.Cluster != nil && current.Cluster.Leader != "" &&
+		current, probeErr := survivorJS.StreamInfo(resolved.Consumers["RESULTS_WORKER"].Stream, nats.MaxWait(time.Second))
+		if probeErr == nil && current.Cluster != nil && current.Cluster.Leader != "" &&
 			current.Cluster.Leader != stream.Cluster.Leader {
+			newLeader = current.Cluster.Leader
 			break
 		}
 		if ctx.Err() != nil {
-			t.Fatalf("cluster did not elect a new results leader after %s stopped: %v", stream.Cluster.Leader, err)
+			t.Fatalf("cluster did not elect a new results leader after %s stopped: last=%v", stream.Cluster.Leader, probeErr)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	_ = newLeader
+	js = survivorJS
 	publish(6, 12)
 	wait(12)
 	// Verify no unexpected extra business deliveries; the durable ACK
