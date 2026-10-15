@@ -21,6 +21,14 @@ from instance ID. All replicas of one deployment **must** have identical
 Stream/Consumer configs, and different independent deployments need distinct
 actual wire subjects/accounts as well as different namespaces.
 
+For compatibility with already-provisioned brokers, a Stream can optionally
+specify `streams[KEY].name` and a Consumer can specify
+`consumers[KEY].durable`. These fields retain the exact supplied physical
+identity, rather than generating a namespaced one; they must be explicitly
+configured and reviewed by the application adapter. Duplicate or malformed
+physical names are rejected. Defaults remain namespace-derived. This is a
+read-only naming capability, **not** permission for an automatic migration.
+
 ## Lifecycle
 
 1. Use `cfg.Resolve()` for entirely offline, read-only validation.

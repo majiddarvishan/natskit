@@ -190,6 +190,7 @@ func (c Config) Resolve() (Resolved, error) {
 	r.Streams = make(map[string]nats.StreamConfig, len(j.Streams))
 	r.Consumers = make(map[string]ResolvedConsumer, len(j.Consumers))
 	allPatterns := map[string]string{}
+	physicalStreams := map[string]string{}
 	for key, spec := range j.Streams {
 		if !resourceName.MatchString(key) {
 			return r, fmt.Errorf("invalid stream name %q", key)
@@ -208,6 +209,13 @@ func (c Config) Resolve() (Resolved, error) {
 		}
 		settings = mergeStream(settings, spec.StreamSettings)
 		name := r.Namespace + "_" + key
+		if spec.Name != "" {
+			name = spec.Name
+		}
+		if previous, exists := physicalStreams[name]; exists {
+			return r, fmt.Errorf("streams %s and %s share physical name %q", previous, key, name)
+		}
+		physicalStreams[name] = key
 		if !resourceName.MatchString(name) {
 			return r, fmt.Errorf("invalid physical stream name %q", name)
 		}
@@ -268,6 +276,7 @@ func (c Config) Resolve() (Resolved, error) {
 		}
 		r.Streams[key] = nats.StreamConfig{Name: name, Subjects: subjects, Storage: storage, Retention: retention, Discard: discard, MaxAge: age, Duplicates: dup, Replicas: replicas, MaxBytes: maxBytes, MaxMsgSize: maxMsgSize}
 	}
+	physicalConsumers := map[string]string{}
 	for key, spec := range j.Consumers {
 		if !resourceName.MatchString(key) {
 			return r, fmt.Errorf("invalid consumer name %q", key)
@@ -356,6 +365,17 @@ func (c Config) Resolve() (Resolved, error) {
 			return r, fmt.Errorf("consumer %s in_progress_interval must be shorter than ack deadline", key)
 		}
 		physical := r.Namespace + "_" + key
+		if spec.Durable != "" {
+			physical = spec.Durable
+		}
+		if !resourceName.MatchString(physical) {
+			return r, fmt.Errorf("consumer %s has invalid durable name %q", key, physical)
+		}
+		identity := stream.Name + "/" + physical
+		if previous, exists := physicalConsumers[identity]; exists {
+			return r, fmt.Errorf("consumers %s and %s share durable %q", previous, key, identity)
+		}
+		physicalConsumers[identity] = key
 		cc := nats.ConsumerConfig{Durable: physical, AckPolicy: nats.AckExplicitPolicy, DeliverPolicy: delivery, AckWait: ackWait, MaxDeliver: maxDeliver, MaxAckPending: maxPending, BackOff: backoff, ReplayPolicy: nats.ReplayInstantPolicy}
 		if len(filters) == 1 {
 			cc.FilterSubject = filters[0]

@@ -67,6 +67,7 @@ type StreamSettings struct {
 }
 
 type StreamSpec struct {
+	Name     string   `json:"name,omitempty"` // optional exact physical name of an existing Stream
 	Profile  string   `json:"profile,omitempty"`
 	Subjects []string `json:"subjects"`
 	StreamSettings
@@ -83,6 +84,7 @@ type ConsumerSettings struct {
 }
 
 type ConsumerSpec struct {
+	Durable string   `json:"durable,omitempty"` // optional exact existing Durable name
 	Stream string   `json:"stream"`
 	Filter []string `json:"filter"`
 	ConsumerSettings

@@ -178,3 +178,72 @@ func TestPatternsAndProfiles(t *testing.T) {
 		}
 	}
 }
+
+func TestExplicitPhysicalNamesPreserveExistingBrokerResources(t *testing.T) {
+	cfg := sample(t)
+	stream := cfg.JetStream.Streams["RESULTS"]
+	stream.Name = "LEGACY_RESULTS"
+	cfg.JetStream.Streams["RESULTS"] = stream
+	consumer := cfg.JetStream.Consumers["RESULTS_WORKER"]
+	consumer.Durable = "EXISTING_RESULTS_DURABLE"
+	cfg.JetStream.Consumers["RESULTS_WORKER"] = consumer
+	first, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Streams["RESULTS"].Name != stream.Name ||
+		first.Consumers["RESULTS_WORKER"].Stream != stream.Name ||
+		first.Consumers["RESULTS_WORKER"].Config.Durable != consumer.Durable {
+		t.Fatalf("explicit broker identities were renamed: %+v", first)
+	}
+	t.Setenv("NATS_INSTANCE_ID", "replica-99")
+	second, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Consumers["RESULTS_WORKER"].Config.Durable != consumer.Durable ||
+		second.Streams["RESULTS"].Name != stream.Name {
+		t.Fatal("broker identities changed across replica IDs")
+	}
+}
+
+func TestExplicitPhysicalNamesRejectCollisionsAndInvalidNames(t *testing.T) {
+	tests := []struct {
+		name string
+		change func(*Config)
+	}{
+		{"stream collision", func(c *Config) {
+			a := c.JetStream.Streams["RESULTS"]
+			b := c.JetStream.Streams["COMMANDS"]
+			a.Name, b.Name = "DUPLICATE", "DUPLICATE"
+			c.JetStream.Streams["RESULTS"], c.JetStream.Streams["COMMANDS"] = a, b
+		}},
+		{"invalid stream name", func(c *Config) {
+			a := c.JetStream.Streams["RESULTS"]
+			a.Name = "contains.dot"
+			c.JetStream.Streams["RESULTS"] = a
+		}},
+		{"invalid durable name", func(c *Config) {
+			a := c.JetStream.Consumers["RESULTS_WORKER"]
+			a.Durable = "illegal.durable"
+			c.JetStream.Consumers["RESULTS_WORKER"] = a
+		}},
+		{"durable collision", func(c *Config) {
+			a := c.JetStream.Consumers["RESULTS_WORKER"]
+			b := c.JetStream.Consumers["CANCEL_RESULTS_WORKER"]
+			a.Durable, b.Durable = "SAME", "SAME"
+			b.Stream = a.Stream
+			c.JetStream.Consumers["RESULTS_WORKER"] = a
+			c.JetStream.Consumers["CANCEL_RESULTS_WORKER"] = b
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := sample(t)
+			tc.change(&c)
+			if _, err := c.Resolve(); err == nil {
+				t.Fatal("unsafe physical resource naming accepted")
+			}
+		})
+	}
+}
