@@ -158,3 +158,100 @@ func TestDisposableSlowHandlerInProgressExtendsAckDeadline(t *testing.T) {
 		t.Fatalf("slow Handler redelivered despite InProgress: %d attempts", got)
 	}
 }
+
+func TestDisposableMultiFilterDurableReceivesBothSubjects(t *testing.T) {
+	url := startDisposableServer(t)
+	cfg := sample(t)
+	cfg.InstanceID = "multi-filter"
+	cfg.Connection.URLs = []string{url}
+	cfg.JetStream.Defaults.Consumer.Backoff = []string{"150ms", "250ms"}
+	cfg.JetStream.Defaults.Worker.InProgressInterval = "50ms"
+	consumer := cfg.JetStream.Consumers["RESULTS_WORKER"]
+	consumer.Filter = []string{"results", "cancel_results"}
+	cfg.JetStream.Consumers["RESULTS_WORKER"] = consumer
+	delete(cfg.JetStream.Consumers, "CANCEL_RESULTS_WORKER")
+	resolved, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close()
+	js, err := admin.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ProvisionMissing(context.Background(), js, resolved); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	client, err := Connect(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	received := make(chan string, 2)
+	worker, err := client.StartWorker(ctx, "RESULTS_WORKER", func(_ context.Context, msg *nats.Msg) error {
+		received <- msg.Subject
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Stop()
+	if err := client.Publish(ctx, "results", []byte("regular"), "multi-filter-regular"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Publish(ctx, "cancel_results", []byte("cancel"), "multi-filter-cancel"); err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[string]bool)
+	for len(got) < 2 {
+		select {
+		case subject := <-received:
+			got[subject] = true
+		case <-ctx.Done():
+			t.Fatalf("multi-filter did not process both subjects: %+v; %v", got, ctx.Err())
+		}
+	}
+	if !got[cfg.Subjects["results"]] || !got[cfg.Subjects["cancel_results"]] {
+		t.Fatalf("incorrect multi-filter subjects: %+v", got)
+	}
+}
+
+func TestDisposableVerifyRejectsStreamDriftWithoutUpdating(t *testing.T) {
+	url := startDisposableServer(t)
+	cfg, js, _ := disposableConfig(t, url)
+	resolved, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	if err := Verify(ctx, js, resolved); err != nil {
+		t.Fatalf("initial topology must verify: %v", err)
+	}
+	name := resolved.Streams["RESULTS"].Name
+	info, err := js.StreamInfo(name, nats.Context(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := info.Config
+	changed.MaxBytes /= 2
+	if _, err := js.UpdateStream(&changed, nats.Context(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	if err := Verify(ctx, js, resolved); err == nil {
+		t.Fatal("Verify silently accepted Stream drift")
+	}
+	after, err := js.StreamInfo(name, nats.Context(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Config.MaxBytes != changed.MaxBytes {
+		t.Fatal("read-only Verify unexpectedly mutated broker Stream")
+	}
+}
