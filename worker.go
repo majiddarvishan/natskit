@@ -31,6 +31,9 @@ type Worker struct {
 	subscription *nats.Subscription
 	done         chan error
 	cancel       context.CancelFunc
+	stopOnce     sync.Once
+	stopped      chan struct{}
+	stopErr      error
 }
 
 // StartWorker binds to the existing pull Durable; it never creates a Consumer.
@@ -51,7 +54,7 @@ func (c *Client) StartWorker(ctx context.Context, key string, handler Handler) (
 		return nil, fmt.Errorf("bind durable %s: %w", resolved.Config.Durable, err)
 	}
 	child, cancel := context.WithCancel(ctx)
-	w := &Worker{subscription: sub, done: make(chan error, 1), cancel: cancel}
+	w := &Worker{subscription: sub, done: make(chan error, 1), cancel: cancel, stopped: make(chan struct{})}
 	go func() { w.done <- c.runWorker(child, resolved, sub, handler) }()
 	return w, nil
 }
@@ -172,7 +175,15 @@ func (c *Client) quarantine(ctx context.Context, msg *nats.Msg, reason string) e
 }
 
 // Stop cancels the fetch loop and waits for in-flight handlers before returning.
-func (w *Worker) Stop() error { w.cancel(); return <-w.done }
+func (w *Worker) Stop() error {
+	w.stopOnce.Do(func() {
+		w.cancel()
+		w.stopErr = <-w.done
+		close(w.stopped)
+	})
+	<-w.stopped
+	return w.stopErr
+}
 
 // A bad application handler must not crash the entire worker process.
 func callHandler(ctx context.Context, msg *nats.Msg, handler Handler) (err error) {

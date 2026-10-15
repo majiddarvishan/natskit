@@ -59,6 +59,12 @@ actual wire subjects/accounts as well as different namespaces.
 
 ## Verification
 
+Both `go.mod` and `go.sum` are committed and CI verifies that `go mod
+tidy` leaves them unchanged. The worker's `Stop()` method is safe for
+repeated and concurrent calls; it cancels the fetch loop and waits for
+in-flight handlers once. It does not claim exactly-once processing.
+
+
 ```sh
 cd modules/natskit
 go mod tidy
