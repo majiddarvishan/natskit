@@ -83,12 +83,16 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 		if available < batch {
 			batch = available
 		}
-		msgs, err := sub.Fetch(batch, nats.Context(ctx), nats.MaxWait(time.Second))
+		// nats.go does not permit Context and MaxWait together. A bounded
+		// child context keeps polling cancelable during graceful shutdown.
+		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second)
+		msgs, err := sub.Fetch(batch, nats.Context(fetchCtx))
+		fetchCancel()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			if errors.Is(err, nats.ErrTimeout) {
+			if errors.Is(err, nats.ErrTimeout) || errors.Is(err, context.DeadlineExceeded) {
 				continue
 			}
 			return fmt.Errorf("fetch %s: %w", def.Config.Durable, err)
