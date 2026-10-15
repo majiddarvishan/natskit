@@ -209,7 +209,7 @@ func TestExplicitPhysicalNamesPreserveExistingBrokerResources(t *testing.T) {
 
 func TestExplicitPhysicalNamesRejectCollisionsAndInvalidNames(t *testing.T) {
 	tests := []struct {
-		name string
+		name   string
 		change func(*Config)
 	}{
 		{"stream collision", func(c *Config) {
