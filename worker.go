@@ -44,12 +44,13 @@ type WorkerOptions struct {
 
 // DeliveryEvent contains only broker metadata; original payloads are omitted.
 type DeliveryEvent struct {
-	Action     string
-	Subject    string
-	Stream     string
-	Sequence   uint64
-	Deliveries uint64
-	Err        error
+	Action       string
+	Subject      string
+	PayloadBytes int
+	Stream       string
+	Sequence     uint64
+	Deliveries   uint64
+	Err          error
 }
 
 func (opts WorkerOptions) emit(action string, msg *nats.Msg, err error) {
@@ -163,6 +164,7 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 }
 
 func (c *Client) processMessage(ctx context.Context, def ResolvedConsumer, msg *nats.Msg, handler Handler, options WorkerOptions) {
+	options.emit("received", msg, nil)
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stop := make(chan struct{})
