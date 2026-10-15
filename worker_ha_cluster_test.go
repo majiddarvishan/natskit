@@ -216,6 +216,10 @@ cluster {
 				return
 			}
 			if ctx.Err() != nil {
+				if info != nil {
+					t.Fatalf("quorum ACK floor not reached %d: floor=%d pending=%d ack_pending=%d redelivered=%d err=%v",
+						want, info.AckFloor.Consumer, info.NumPending, info.NumAckPending, info.NumRedelivered, err)
+				}
 				t.Fatalf("quorum ACK floor not reached %d, err=%v", want, err)
 			}
 			time.Sleep(50 * time.Millisecond)
