@@ -153,7 +153,20 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 			if errors.Is(err, nats.ErrTimeout) || errors.Is(err, context.DeadlineExceeded) {
 				continue
 			}
-			return fmt.Errorf("fetch %s: %w", def.Config.Durable, err)
+			if errors.Is(err, nats.ErrBadSubscription) ||
+				(errors.Is(err, nats.ErrConnectionClosed) && c.Conn.IsClosed()) {
+				return fmt.Errorf("consumer %s is permanently unavailable: %w", def.Config.Durable, err)
+			}
+			// Broker disconnects and short-lived JetStream fetch failures do
+			// not terminate a durable worker. NATS reconnects its subscription;
+			// topology/readiness checks independently fail closed during outage.
+			options.emit("pull_error", nil, err)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Second):
+				continue
+			}
 		}
 		for _, message := range msgs {
 			limiter <- struct{}{}
