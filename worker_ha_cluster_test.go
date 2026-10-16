@@ -220,18 +220,23 @@ cluster {
 		}
 	}
 	wait := func(want int) {
+		var last *nats.ConsumerInfo
 		for {
 			info, err := js.ConsumerInfo(resolved.Consumers["RESULTS_WORKER"].Stream,
 				resolved.Consumers["RESULTS_WORKER"].Config.Durable, nats.Context(ctx))
+			if err == nil {
+				last = info
+			}
 			if err == nil && info.AckFloor.Consumer >= uint64(want) && info.NumAckPending == 0 {
 				return
 			}
 			if ctx.Err() != nil {
-				if info != nil {
-					t.Fatalf("quorum ACK floor not reached %d: floor=%d pending=%d ack_pending=%d redelivered=%d err=%v",
-						want, info.AckFloor.Consumer, info.NumPending, info.NumAckPending, info.NumRedelivered, err)
+				if last != nil {
+					t.Fatalf("quorum ACK floor not reached %d: last_floor=%d pending=%d ack_pending=%d redelivered=%d received=%d ready_a=%t ready_b=%t err=%v",
+						want, last.AckFloor.Consumer, last.NumPending, last.NumAckPending, last.NumRedelivered,
+						len(received), workerA.Ready(), workerB.Ready(), err)
 				}
-				t.Fatalf("quorum ACK floor not reached %d, err=%v", want, err)
+				t.Fatalf("quorum ACK floor not reached %d: no last consumer snapshot, err=%v", want, err)
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
