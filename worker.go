@@ -129,6 +129,34 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 	boundLeader := c.workerStreamLeader(ctx, def.Stream)
 	lastBind := time.Now()
 	idleFetches := 0
+	checkStalledPull := func() {
+		idleFetches++
+		if idleFetches < 3 || time.Since(lastBind) < 3*time.Second || !c.Conn.IsConnected() {
+			return
+		}
+		// Verify the pre-existing Stream and Durable read-only. Never
+		// issue a bind during an unknown/disconnected broker state.
+		nextLeader, hasPending, checked := c.workerRebindProbe(ctx, def)
+		if checked && ((boundLeader != "" && nextLeader != "" && nextLeader != boundLeader) || hasPending) {
+			fresh, bindErr := c.JS.PullSubscribe(def.Config.FilterSubject, def.Config.Durable,
+				nats.Bind(def.Stream, def.Config.Durable))
+			if bindErr == nil {
+				previous := sub
+				sub = fresh
+				w.subscription.Store(fresh)
+				_ = previous.Unsubscribe()
+				options.emit("rebound", nil, nil)
+				boundLeader = nextLeader
+			} else {
+				options.emit("rebind_error", nil, bindErr)
+			}
+			lastBind = time.Now()
+		} else if checked && nextLeader != "" {
+			boundLeader = nextLeader
+			lastBind = time.Now()
+		}
+		idleFetches = 0
+	}
 	limiter := make(chan struct{}, def.Worker.MaxConcurrency)
 	var active sync.WaitGroup
 	defer active.Wait()
@@ -158,32 +186,7 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 				return nil
 			}
 			if errors.Is(err, nats.ErrTimeout) || errors.Is(err, context.DeadlineExceeded) {
-				idleFetches++
-				if idleFetches >= 3 && time.Since(lastBind) >= 3*time.Second && c.Conn.IsConnected() {
-					// Once per bounded cooldown: either a verified leader
-					// changed or pending messages have stalled despite idle
-					// fetches. Avoid rebind on failed/unknown broker probes.
-					nextLeader, hasPending, checked := c.workerRebindProbe(ctx, def)
-					if checked && ((boundLeader != "" && nextLeader != "" && nextLeader != boundLeader) || hasPending) {
-						fresh, bindErr := c.JS.PullSubscribe(def.Config.FilterSubject, def.Config.Durable,
-							nats.Bind(def.Stream, def.Config.Durable))
-						if bindErr == nil {
-							previous := sub
-							sub = fresh
-							w.subscription.Store(fresh)
-							_ = previous.Unsubscribe()
-							options.emit("rebound", nil, nil)
-							boundLeader = nextLeader
-						} else {
-							options.emit("rebind_error", nil, bindErr)
-						}
-						lastBind = time.Now()
-					} else if checked && nextLeader != "" {
-						boundLeader = nextLeader
-						lastBind = time.Now()
-					}
-					idleFetches = 0
-				}
+				checkStalledPull()
 				continue
 			}
 			if errors.Is(err, nats.ErrBadSubscription) ||
@@ -194,6 +197,7 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 			// not terminate a durable worker. NATS reconnects its subscription;
 			// topology/readiness checks independently fail closed during outage.
 			options.emit("pull_error", nil, err)
+			checkStalledPull()
 			select {
 			case <-ctx.Done():
 				return nil
