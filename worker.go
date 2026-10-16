@@ -189,6 +189,28 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 				checkStalledPull()
 				continue
 			}
+			if errors.Is(err, nats.ErrBadSubscription) && c.Conn.IsConnected() {
+				// A JetStream leader change can invalidate only the local
+				// pull inbox. Before replacing it, require successful
+				// read-only verification that the Durable still exists.
+				nextLeader, _, verified := c.workerRebindProbe(ctx, def)
+				if verified {
+					fresh, bindErr := c.JS.PullSubscribe(def.Config.FilterSubject, def.Config.Durable,
+						nats.Bind(def.Stream, def.Config.Durable))
+					if bindErr == nil {
+						previous := sub
+						sub = fresh
+						w.subscription.Store(fresh)
+						_ = previous.Unsubscribe()
+						boundLeader = nextLeader
+						lastBind = time.Now()
+						idleFetches = 0
+						options.emit("rebound", nil, nil)
+						continue
+					}
+					options.emit("rebind_error", nil, bindErr)
+				}
+			}
 			if errors.Is(err, nats.ErrBadSubscription) ||
 				(errors.Is(err, nats.ErrConnectionClosed) && c.Conn.IsClosed()) {
 				return fmt.Errorf("consumer %s is permanently unavailable: %w", def.Config.Durable, err)
@@ -204,6 +226,10 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 			case <-time.After(time.Second):
 				continue
 			}
+		}
+		if len(msgs) == 0 {
+			checkStalledPull()
+			continue
 		}
 		idleFetches = 0
 		for _, message := range msgs {
@@ -237,7 +263,7 @@ func (c *Client) workerRebindProbe(ctx context.Context, def ResolvedConsumer) (s
 	if stream.Cluster != nil {
 		leader = stream.Cluster.Leader
 	}
-	return leader, consumer.NumPending > 0, true
+	return leader, consumer.NumPending > 0 || consumer.NumAckPending > 0, true
 }
 
 func (c *Client) workerStreamLeader(ctx context.Context, stream string) string {
