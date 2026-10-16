@@ -189,6 +189,19 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 				checkStalledPull()
 				continue
 			}
+			if errors.Is(err, nats.ErrBadSubscription) && !c.Conn.IsConnected() && !c.Conn.IsClosed() {
+				// The local inbox can be invalidated while the client is
+				// reconnecting. Wait for broker connectivity before
+				// verifying the existing Durable, rather than terminating
+				// a healthy logical worker during a transient outage.
+				options.emit("pull_error", nil, err)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(time.Second):
+					continue
+				}
+			}
 			if errors.Is(err, nats.ErrBadSubscription) && c.Conn.IsConnected() {
 				// A JetStream leader change can invalidate only the local
 				// pull inbox. Before replacing it, require successful
