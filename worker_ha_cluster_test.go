@@ -19,17 +19,6 @@ import (
 // exercise. Uses the same shared pull Durable with two app replicas and
 // deliberately kills the currently elected results Stream leader.
 func TestDisposableThreeNodeJetStreamLeaderFailover(t *testing.T) {
-	disposableThreeNodeLeaderFailure(t, true)
-}
-
-// This is a different gate from controlled manual rebind: both original
-// workers and their original subscriptions must recover without Stop,
-// StartWorker, or an externally scheduled runtime restart.
-func TestDisposableThreeNodeJetStreamTransparentPullRecovery(t *testing.T) {
-	disposableThreeNodeLeaderFailure(t, false)
-}
-
-func disposableThreeNodeLeaderFailure(t *testing.T, controlledRebind bool) {
 	bin, err := exec.LookPath("nats-server")
 	if err != nil {
 		t.Skip("nats-server binary required for isolated HA test")
@@ -220,23 +209,18 @@ cluster {
 		}
 	}
 	wait := func(want int) {
-		var last *nats.ConsumerInfo
 		for {
 			info, err := js.ConsumerInfo(resolved.Consumers["RESULTS_WORKER"].Stream,
 				resolved.Consumers["RESULTS_WORKER"].Config.Durable, nats.Context(ctx))
-			if err == nil {
-				last = info
-			}
 			if err == nil && info.AckFloor.Consumer >= uint64(want) && info.NumAckPending == 0 {
 				return
 			}
 			if ctx.Err() != nil {
-				if last != nil {
-					t.Fatalf("quorum ACK floor not reached %d: last_floor=%d pending=%d ack_pending=%d redelivered=%d received=%d ready_a=%t ready_b=%t err=%v",
-						want, last.AckFloor.Consumer, last.NumPending, last.NumAckPending, last.NumRedelivered,
-						len(received), workerA.Ready(), workerB.Ready(), err)
+				if info != nil {
+					t.Fatalf("quorum ACK floor not reached %d: floor=%d pending=%d ack_pending=%d redelivered=%d err=%v",
+						want, info.AckFloor.Consumer, info.NumPending, info.NumAckPending, info.NumRedelivered, err)
 				}
-				t.Fatalf("quorum ACK floor not reached %d: no last consumer snapshot, err=%v", want, err)
+				t.Fatalf("quorum ACK floor not reached %d, err=%v", want, err)
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
@@ -288,36 +272,34 @@ cluster {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if controlledRebind {
-		// A controlled replica restart is the explicit recovery path after
-		// stream leader change. This does not claim that a pre-failover pull
-		// subscription always survives a broker election without a rebind.
-		if err := workerA.Stop(); err != nil {
-			t.Logf("old worker A shutdown after leader loss: %v", err)
-		}
-		if err := workerB.Stop(); err != nil {
-			t.Logf("old worker B shutdown after leader loss: %v", err)
-		}
-		// Rebind both pull subscriptions using their original reconnecting
-		// client connections. A full fresh Connect would verify *all* Streams;
-		// unrelated Stream leadership may still be converging at this point.
-		rebind := func(client *Client) *Worker {
-			for {
-				worker, bindErr := client.StartWorker(ctx, "RESULTS_WORKER", handler)
-				if bindErr == nil {
-					return worker
-				}
-				if ctx.Err() != nil {
-					t.Fatalf("cannot rebind shared Durable after leader change: %v", bindErr)
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-		resumedWorkerA := rebind(first)
-		defer resumedWorkerA.Stop()
-		resumedWorkerB := rebind(second)
-		defer resumedWorkerB.Stop()
+	// A controlled replica restart is the explicit recovery path after
+	// stream leader change. This does not claim that a pre-failover pull
+	// subscription always survives a broker election without a rebind.
+	if err := workerA.Stop(); err != nil {
+		t.Logf("old worker A shutdown after leader loss: %v", err)
 	}
+	if err := workerB.Stop(); err != nil {
+		t.Logf("old worker B shutdown after leader loss: %v", err)
+	}
+	// Rebind both pull subscriptions using their original reconnecting
+	// client connections. A full fresh Connect would verify *all* Streams;
+	// unrelated Stream leadership may still be converging at this point.
+	rebind := func(client *Client) *Worker {
+		for {
+			worker, bindErr := client.StartWorker(ctx, "RESULTS_WORKER", handler)
+			if bindErr == nil {
+				return worker
+			}
+			if ctx.Err() != nil {
+				t.Fatalf("cannot rebind shared Durable after leader change: %v", bindErr)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	resumedWorkerA := rebind(first)
+	defer resumedWorkerA.Stop()
+	resumedWorkerB := rebind(second)
+	defer resumedWorkerB.Stop()
 	js = survivorJS
 	publish(6, 12)
 	wait(12)
