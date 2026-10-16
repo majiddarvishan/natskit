@@ -2,10 +2,9 @@
 
 ## Module boundary
 
-Go import path: `github.com/Shayan-Pardaz/natskit`. Source currently lives at
-`modules/natskit` under CRA Bridge, but it does **not** import CRA, protobuf,
-PostgreSQL, business models, product loggers or metrics. The standalone
-repository is not created or tagged yet.
+Go import path: `github.com/majiddarvishan/natskit`. Source is maintained in
+its own repository and does **not** import CRA, protobuf, PostgreSQL, business
+models, product loggers or metrics. No release tag has been created.
 
 The application may wrap the library JSON in `{"nats": {...}}`, but pass
 **only** the nested `nats` JSON object to `natskit.Decode`. Unknown JSON
@@ -92,7 +91,6 @@ migration from existing broker topologies.
 ## Independent verification
 
 ```sh
-cd modules/natskit
 go mod tidy
 git diff --exit-code -- go.mod go.sum
 test -z "$(gofmt -l *.go)"
@@ -107,23 +105,14 @@ launches an isolated loopback server with temporary storage, and checks
 shared Durable, redelivery, and Quarantine failure paths. Broader crash,
 reconnect, sustained HA and production operations need separate evidence.
 
-## Independent repository and version plan
+## Independent repository and version policy
 
-1. Complete the CRA runtime adapter and verify legacy five-Stream and grouped
-   three-Stream compatibility without changing actual broker identities,
-   deduplication keys, ACK behavior or customer defaults.
-2. Run independent library unit/race/vet and disposable integration tests;
-   add full public API docs and a reproducible release checklist.
-3. Create a separate repository only after explicit owner authorization;
-   preserve Go module path exactly `github.com/Shayan-Pardaz/natskit`.
-4. Move the module at a coordinated commit, remove CRA's temporary local
-   `replace` directive, and pin CRA to an approved tagged semantic version.
-5. Start with a pre-1.0 minor version after API/stability review. Any
-   incompatible public API changes before 1.0 require an explicit review;
-   document compatibility guarantees before a 1.0 release.
-
-**No standalone repository, version bump, tag, broker migration, or production
-switch is authorized by this document.**
+Source is maintained at `https://github.com/majiddarvishan/natskit`.
+Consumers pin immutable commits until the owner approves a semantic release.
+No release tag is created by this extraction. API compatibility and a future
+pre-1.0 version require an explicit release review. Database commits, business
+idempotency and wire-contract adapters remain application responsibilities.
+This repository does not authorize live provisioning, replay or deployment.
 
 ## Optional application-owned Worker delivery policy (2026-10-15)
 
@@ -148,8 +137,6 @@ AckWait/BackOff. Applications requiring an explicit retry policy may invoke
   capture and reconciliation. This library has **no** exactly-once
   processing or lossless automatic replay guarantee.
 
-The CRA-specific configuration, NAK delay and legacy Replay headers are
-implemented in `internal/natsadapter`, **not** within NATS Kit. This
-preserves library reusability for SARA and other Go services. No existing
-CRA production runtime path is switched to NATS Kit by these APIs.
+Application-specific configuration, NAK delay and replay headers belong
+in consumer adapters, not in this generic transport library.
 

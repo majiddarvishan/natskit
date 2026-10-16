@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  default:
+    cmd: task --list
+  fmt:check:
+    cmd: test -z "$(gofmt -l *.go)"
+  mod:check:
+    cmds:
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+  go:test:
+    cmd: go test -count=1 ./...
+  go:race:
+    cmd: go test -race -count=1 ./...
+  go:vet:
+    cmd: go vet ./...
+  verify:
+    cmds:
+      - task: fmt:check
+      - task: mod:check
+      - task: go:test
+      - task: go:race
+      - task: go:vet

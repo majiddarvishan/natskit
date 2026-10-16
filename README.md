@@ -1,8 +1,14 @@
-# natskit — portable NATS / JetStream Go library (extraction candidate)
+# natskit — portable NATS / JetStream Go library
 
-Independent Go module under `modules/natskit`. No import from CRA Bridge, SARA,
-Telara, Protobuf, Postgres, fluxlog, or application-specific code. Designed to be
-moved into its own Git repository with the same module path in a later release.
+Independent Go module: `github.com/majiddarvishan/natskit`. No import from CRA
+Bridge, SARA, Telara, Protobuf, Postgres, fluxlog, or application-specific code.
+Requires Go 1.26 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance.
+
+Consumers should pin an immutable commit until a semantic release is approved:
+
+```sh
+go get github.com/majiddarvishan/natskit@<commit-sha>
+```
 
 ## Config model
 
@@ -46,10 +52,10 @@ read-only naming capability, **not** permission for an automatic migration.
 
 ## Scope and safety
 
-- This is an **independent module foundation** with an offline CRA compatibility
-  adapter in `internal/natsadapter`. The existing CRA publisher and consumers
-  remain authoritative until full runtime compatibility is tested, with no
-  implicit broker rename, migration, or production switch.
+- This library owns generic transport behavior only. Applications retain their
+  database transactions, domain idempotency, wire contracts and compatibility
+  adapters. Importing the module never authorizes a broker migration or a
+  production transport switch.
 - `pull` Durable with explicit ACK is implemented for multi-replica workers.
   Push, ACK-all, and ACK-none modes are rejected instead of silently degrading.
 - `WorkQueuePolicy` forbids overlapping Consumer filters. Acks remove entries
@@ -75,12 +81,17 @@ in-flight handlers once. It does not claim exactly-once processing.
 
 
 ```sh
-cd modules/natskit
 go mod tidy
 go test -count=1 ./...
 go test -race -count=1 ./...
 go vet ./...
 ```
+
+`task verify` runs the same formatting, dependency, unit, race and vet gates.
+CI installs `nats-server` v2.14.6 so disposable integration tests do not skip,
+and repeats the controlled three-node failover drill three times under race.
+The worker uses ordinary reconnect; transparent automatic pull-subscription
+rebind and automatic recovery/replay are outside the supported scope.
 
 Unit tests never use production resources. Integration tests launch a
 `nats-server` executable bound to a random local port with a temporary data
@@ -113,8 +124,7 @@ AckWait/BackOff. Applications requiring an explicit retry policy may invoke
   capture and reconciliation. This library has **no** exactly-once
   processing or lossless automatic replay guarantee.
 
-The CRA-specific configuration, NAK delay and legacy Replay headers are
-implemented in `internal/natsadapter`, **not** within NATS Kit. This
-preserves library reusability for SARA and other Go services. No existing
-CRA production runtime path is switched to NATS Kit by these APIs.
+Applications supply their own configuration mapping, NAK delay and replay
+headers through the generic hooks. No application-specific adapter belongs
+inside this repository.
 

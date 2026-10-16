@@ -1,4 +1,4 @@
-module github.com/Shayan-Pardaz/natskit
+module github.com/majiddarvishan/natskit
 
 go 1.26.0
 
