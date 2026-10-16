@@ -249,7 +249,7 @@ func (c *Client) runWorker(ctx context.Context, def ResolvedConsumer, sub *nats.
 // confirm the Consumer and Stream, the worker preserves its subscription
 // and lets normal connection recovery continue.
 func (c *Client) workerRebindProbe(ctx context.Context, def ResolvedConsumer) (string, bool, bool) {
-	checkCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	stream, err := c.JS.StreamInfo(def.Stream, nats.Context(checkCtx))
 	if err != nil || stream == nil {
@@ -267,7 +267,7 @@ func (c *Client) workerRebindProbe(ctx context.Context, def ResolvedConsumer) (s
 }
 
 func (c *Client) workerStreamLeader(ctx context.Context, stream string) string {
-	checkCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	info, err := c.JS.StreamInfo(stream, nats.Context(checkCtx))
 	if err == nil && info != nil && info.Cluster != nil {
