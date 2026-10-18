@@ -119,8 +119,9 @@ reconnect, sustained HA and production operations need separate evidence.
 
 Source is maintained at `https://github.com/majiddarvishan/natskit`.
 Consumers pin immutable commits until the owner approves a semantic release.
-No release tag is created by this extraction. API compatibility and a future
-pre-1.0 version require an explicit release review. Database commits, business
+The published v0.1.0 tag is immutable. This post-release source version now
+supports Go 1.23.2 with nats.go v1.48.0; API compatibility and any future
+pre-1.0 release still require explicit owner review. Database commits, business
 idempotency and wire-contract adapters remain application responsibilities.
 This repository does not authorize live provisioning, replay or deployment.
 
