@@ -1,5 +1,15 @@
 # NATSKit — session record
 
+## 2026-10-19 — generic publisher source candidate, verification pending
+
+- Read both repositories' START_HERE and approved routing design; verified NATSKit main source baseline at `7e9cba9ab3767194051cf8567ebc8943145aef36`.
+- Committed generic `PublishConfirmedWithOptions` and `PublishOptions.ExpectedStream` while preserving the original `PublishConfirmed` entrypoint, Core semantics and real JetStream PubAck metadata. Publishing no longer scans managed Streams.
+- Allowed a publish-only `Config.Resolve` with zero managed Streams/Consumers. Managed reconciliation and subject replacement code were not modified.
+- Added disposable broker tests for two publishers and independently owned receiver Streams/Durables across Subject1/2 -> X/Y, duplicate PubAcks, incorrect expected Stream, missing capture and Core NATS receipt semantics.
+- Commits: `1a1e6caaaec50f5e4dafd3cf9afb5fc39490391a`, `da0b28b084be126a586be80bec7b2974828399d7`, `60e09468e98de5759f5c28e80263b713f6cb06ae`.
+- **Not executed**: focused Go tests, gofmt, go vet, race and `task verify:strict`. Editing environment has Go 1.23.2, not required Go 1.26, and does not have the disposable `nats-server` executable. This is source-only work pending owner-local verification.
+- No customer runtime, broker, database, GitHub Actions, merge, release or tag touched. Published `v0.1.0` remains unchanged.
+
 ## 2026-10-19 — approved generic Publisher design and compact cross-repo handoff
 
 - Owner wants two apps exchanging independent messages over two configured Subjects, with ordinary later remapping to X/Y. Publisher must not own the receiver's Stream; broker capture and receiver Durable provisioning belong to their owners.
