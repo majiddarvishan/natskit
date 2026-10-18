@@ -119,10 +119,10 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 		if !isAdditive && info.Config.MaxAge <= 0 {
 			return result, &ReconcileBlocked{
 				Code: "JS_STREAM_SUBJECT_RETENTION_DRIFT", Resource: "stream/" + want.Name,
-				Current: fmt.Sprintf("max_age=%s subjects=%q", info.Config.MaxAge, info.Config.Subjects),
-				Desired: fmt.Sprintf("max_age=%s subjects=%q", want.MaxAge, want.Subjects),
-				Reason: "subject replacement requires positive existing MaxAge for retained old messages to expire",
-				Risk: "old messages may remain indefinitely without age-based retention",
+				Current:         fmt.Sprintf("max_age=%s subjects=%q", info.Config.MaxAge, info.Config.Subjects),
+				Desired:         fmt.Sprintf("max_age=%s subjects=%q", want.MaxAge, want.Subjects),
+				Reason:          "subject replacement requires positive existing MaxAge for retained old messages to expire",
+				Risk:            "old messages may remain indefinitely without age-based retention",
 				SuggestedAction: "configure and separately approve an expiration policy before replacing subjects; never purge automatically",
 			}
 		}
