@@ -195,9 +195,8 @@ func (c Config) Resolve() (Resolved, error) {
 	if j.Provisioning != "verify" && j.Provisioning != "operator_only" {
 		return r, errors.New("jetstream.provisioning must be verify or operator_only; automatic creation at runtime is not supported")
 	}
-	if len(j.Streams) == 0 {
-		return r, errors.New("jetstream.streams must not be empty")
-	}
+	// A publish-only application may own no broker resources. Outbound
+	// subjects are independent of this managed Stream/Consumer declaration.
 	r.Streams = make(map[string]nats.StreamConfig, len(j.Streams))
 	r.Consumers = make(map[string]ResolvedConsumer, len(j.Consumers))
 	allPatterns := map[string]string{}
