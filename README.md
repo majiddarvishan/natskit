@@ -44,6 +44,8 @@ read-only naming capability, **not** permission for an automatic migration.
    operator approval and a migration plan.
 3. `Connect(ctx,cfg)` connects and calls `Verify` when JetStream is enabled;
    it fails closed if resources are missing or drifted. It never provisions.
+   Apps explicitly opting into non-destructive managed startup use
+   `ConnectReconciled(ctx,cfg)` instead.
 4. `client.Publish(ctx, alias, bytes, stableMessageID)` and
    `client.StartWorker(ctx, logicalConsumerName, handler)` are generic.
    Return `nil` only after the application's database side effects have
@@ -128,3 +130,35 @@ Applications supply their own configuration mapping, NAK delay and replay
 headers through the generic hooks. No application-specific adapter belongs
 inside this repository.
 
+
+## Managed startup reconciliation
+
+Applications that own their NATS topology can opt in explicitly with
+`ConnectReconciled(ctx, cfg)`. Ordinary `Connect` still performs **only
+read-only verification** and retains its existing behavior.
+
+`ConnectReconciled` preflights **every** configured Stream and Durable
+before any mutation. It may create missing resources and **add** new Stream
+subjects without removing the old capture patterns. It verifies the complete
+topology after any operation, and handles concurrent create/expand races by
+inspecting the actual winner. Since NATS cannot atomically update multiple
+resources, interruptions may leave only those non-destructive additions
+partially applied; a subsequent startup can converge safely.
+
+A changed durable filter, removed/replaced Stream subject, or policy drift
+fails closed via `ReconcileBlocked`, including a stable error code, resource
+identity, reason, risk, and suggested recovery action. Consumer-filter errors
+also contain observed pending counts. **No consumer deletion/recreation,
+message purge, or volume cleanup is ever performed.** A zero pending count
+alone cannot prove that all external producers and other application
+replicas have stopped, so it does not authorize changing the filter.
+
+`Reconcile(ctx, js, resolved)` is the lower-level generic API and returns
+`ReconcileReport` with non-sensitive change counts. `ConnectReconciled`
+exposes this report as `Client.Reconciliation`. The caller still decides
+whether managed startup is appropriate and owns operator-facing diagnostics,
+credentials, ACLs and cutover policy. There is no new configuration switch.
+
+Automated subject replacement and durable-filter migration **are not
+implemented** until a coordinated producer/consumer fence and a verifiable
+lossless cursor handoff exists.

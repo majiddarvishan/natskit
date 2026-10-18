@@ -140,3 +140,17 @@ AckWait/BackOff. Applications requiring an explicit retry policy may invoke
 Application-specific configuration, NAK delay and replay headers belong
 in consumer adapters, not in this generic transport library.
 
+
+## Explicit managed startup API
+
+The `jetstream.provisioning` field still accepts only `verify` and
+`operator_only` for compatibility. It does not silently activate resource
+modification. A product that deliberately owns broker topology calls
+`natskit.ConnectReconciled`; regular `natskit.Connect` remains read-only.
+
+Managed startup supports only creating missing resources or adding new
+subject captures to an existing Stream. Deleting/replacing Stream captures,
+changing Durable Consumer filters, or modifying policies requires separate
+coordinated operational migration with assured publisher quiescence and
+ACK cursor continuity. Blocked changes produce structured diagnostic errors
+rather than destructive auto-repair.
