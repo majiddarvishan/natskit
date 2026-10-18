@@ -2,19 +2,19 @@
 
 This is the **only current NATSKit backlog**. Do not import another application's tickets, historical unchecked boxes or broad feature wishlists.
 
-## Go 1.23.2 compatibility — main functional gates PASS; final strict completion pending (2026-10-19)
+## DONE — Go 1.23.2 compatibility quality gate (2026-10-19)
 
-The Go 1.23.2 module/dependency candidate was committed at `a3652d86`; formatting follow-up at `ba588d84`. Owner ran `GOTOOLCHAIN=local task verify:strict` with `nats-server v2.14.6` and provided evidence for clean gofmt, unchanged `go.mod`/`go.sum` after `go mod tidy`, successful `go test -count=1 ./...` (20.098s) and successful `go test -race -count=1 ./...` (20.601s). The output stops at `go vet ./...` with no exit status; **vet and final strict command exit remain unconfirmed** from this capture. No release approval; check dependency security before release.
+The Go 1.23.2 module/dependency candidate was committed at `a3652d86`; formatting follow-up at `ba588d84`. Owner ran `GOTOOLCHAIN=local task verify:strict` with `nats-server v2.14.6`: clean gofmt, unchanged `go.mod`/`go.sum` after `go mod tidy`, `go test -count=1 ./...` PASS (20.098s), and `go test -race -count=1 ./...` PASS (20.601s). The owner then confirmed `echo $?` **0** immediately after the command, establishing the final vet/strict command **PASS**. Go's exact local version was not printed. No release approval; check dependency security before release.
 
 ## APPROVED NEW WORK — 2026-10-19: generic publish addressing independent of Stream ownership
 
-**Authoritative design:** [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md). These are **new OPEN tasks**, distinct from completed \`NK-01\` through \`NK-08\`. In particular, keep completed \`NK-08\` explicit \`subject_update_policy=replace\`: it is a legitimate *managed capture* feature, not the solution for publisher address correction.
+**Authoritative design:** [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md). These were new tasks, now **DONE after owner strict-gate acceptance**, distinct from completed \`NK-01\` through \`NK-08\`. In particular, keep completed \`NK-08\` explicit \`subject_update_policy=replace\`: it is a legitimate *managed capture* feature, not the solution for publisher address correction.
 
 | Ticket | Priority | State | Acceptance |
 | --- | --- | --- | --- |
-| NK-PUB-01 | P0 | IMPLEMENTED / GATE PENDING | \`Client.PublishConfirmed\` publishes to any configured concrete outbound Subject even if the caller owns no matching Stream, assuming the JetStream broker captures the Subject; no provisioning side effects. Preserve Core NATS semantics. |
-| NK-PUB-02 | P0 | IMPLEMENTED / GATE PENDING | Return genuine JetStream PubAck (Stream, sequence, duplicate), with optional expected-Stream assertion independent of ownership. Mismatch/unavailable capture and permissions fail clearly; no silent Core fallback, no imaginary business success. |
-| NK-PUB-03 | P0 | IMPLEMENTED / GATE PENDING | Ensure \`Connect\`/\`Verify\` versus \`ConnectReconciled\`/\`Reconcile\` scope to **owned** Streams/Consumers; never auto-manage publisher destinations. Disposable A/B bidirectional Subject1/Subject2 -> X/Y, independent message histories, unchanged existing broker state, focused failure/regression tests. |
+| NK-PUB-01 | P0 | DONE — owner strict gate PASS | \`Client.PublishConfirmed\` publishes to any configured concrete outbound Subject even if the caller owns no matching Stream, assuming the JetStream broker captures the Subject; no provisioning side effects. Preserve Core NATS semantics. |
+| NK-PUB-02 | P0 | DONE — owner strict gate PASS | Return genuine JetStream PubAck (Stream, sequence, duplicate), with optional expected-Stream assertion independent of ownership. Mismatch/unavailable capture and permissions fail clearly; no silent Core fallback, no imaginary business success. |
+| NK-PUB-03 | P0 | DONE — owner strict gate PASS | Ensure \`Connect\`/\`Verify\` versus \`ConnectReconciled\`/\`Reconcile\` scope to **owned** Streams/Consumers; never auto-manage publisher destinations. Disposable A/B bidirectional Subject1/Subject2 -> X/Y, independent message histories, unchanged existing broker state, focused failure/regression tests. |
 
 Do NATSKit first, record actual tests (focused then \`task verify:strict\` once). CRA later removes unverified \`cancel_external_stream\` and adopts generic API. **No live broker change, no implicit tag/release or GitHub Actions.**
 
