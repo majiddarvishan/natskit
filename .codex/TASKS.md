@@ -8,10 +8,14 @@ This is the **only current NATSKit backlog**. Do not import another application'
 - **NK-02 — Safety and ownership boundaries.** Explicitly document read-only vs managed APIs, safe additive changes, non-destructive refusal, worker ACK/quarantine, local-only tests and version policy. Acceptance: no implicit migration permission.
 - **NK-03 — Explicit integration preflight.** Add `task verify:strict` that **fails** before running tests if `nats-server` is absent, and then runs the current independent `task verify`. Acceptance: default task remains compatible; no new CI/operational infrastructure.
 
-## OPEN — minimal final verification
+## DONE — NK-04: independent strict quality gate (owner-reported PASS, 2026-10-18)
 
-- **NK-04 — One independent strict gate.** On a trusted development workstation using Go 1.26+, install a disposable-test `nats-server` binary (CI reference: v2.14.6), then execute `task verify:strict`. Acceptance: gofmt, clean go.mod/go.sum after tidy, Go unit, race and vet PASS; actual localhost/temp-storage tests **run**, not SKIP due to missing executable; record command output, Go/broker versions and remaining skips. Do not invoke customer NATS endpoints or data directories. If failed, fix only real failures, then rerun the relevant gate.
-- **NK-05 — Final owner acceptance.** When NK-04 is complete, decide whether a future semver/tag/release is warranted. **No tag or release now.** A tag is never a prerequisite for using an immutable commit pin.
+- Owner executed `task verify:strict` with `nats-server: v2.14.6` available on PATH: `fmt:check`, `mod:check` (including `go mod tidy` and clean diff of `go.mod`/`go.sum`), `go:test` (`ok`, 15.546s), `go:race` (`ok`, 14.189s), and `go:vet` (no errors). The provided output ends normally at `go vet` with no failure.
+- The missing-broker precondition is satisfied and the source's disposable-broker tests can run. The provided non-verbose log does **not** enumerate individual test names/skips or the workstation's `go version`; do not invent these details or claim broader production fault coverage. Do not rerun the gate for documentation-only commits.
+
+## OPEN — NK-05: optional release policy decision
+
+- Owner can separately decide whether this verified **pre-release** library needs a semver version/tag/release. **No tag/release has been requested or performed.** An immutable commit pin continues to work; release is not a build prerequisite.
 
 ## BLOCKED — not implementable safely without a cutover contract
 

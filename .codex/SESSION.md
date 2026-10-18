@@ -15,3 +15,10 @@
 - Work from `TASKS.md`, not historical conversations or another repository's state.
 - Do not run a live broker, reset state, or claim test success without evidence.
 - Record any future validated release decision separately; this session authorized none.
+
+## 2026-10-18 — NK-04 independent strict verification PASS (owner evidence)
+
+- User ran `task verify:strict` on the independent NATSKit checkout. Broker version reported: `nats-server: v2.14.6`.
+- Formatting, `go mod tidy`, `go.mod/go.sum` diff, `go test -count=1 ./...` (15.546s), race (14.189s) and `go vet ./...` all succeeded. No error was reported.
+- The supplied output did not include `go version` or verbose per-test skip inventory; record those as unknown, not guessed. All tests run against local disposable broker resources in this repo; no external broker endpoint is configured by the quality gate.
+- NK-04 marked DONE based on owner-provided results. NK-05 release/version choice remains OPEN, NK-06 remains BLOCKED; NK-07 deferred. This commit changes only docs and does not require retesting.
