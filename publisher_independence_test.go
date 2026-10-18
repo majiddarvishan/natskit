@@ -14,7 +14,7 @@ func publishOnlyConfig(url, instanceID, outgoing string) Config {
 	return Config{
 		InstanceID: instanceID,
 		Connection: Connection{URLs: []string{url}},
-		Subjects: map[string]string{"outbound": outgoing},
+		Subjects:   map[string]string{"outbound": outgoing},
 		JetStream: JetStreamConfig{
 			Enabled: true, Namespace: instanceID, Provisioning: "verify",
 		},
