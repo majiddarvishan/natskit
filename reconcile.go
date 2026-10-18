@@ -229,7 +229,6 @@ func subjectsContained(current, desired []string) bool {
 	return len(current) <= len(desired)
 }
 
-
 func streamPolicySummary(c nats.StreamConfig) string {
 	return fmt.Sprintf("storage=%v retention=%v discard=%v replicas=%d max_bytes=%d max_age=%s max_msg_size=%d duplicate_window=%s no_ack=%t discard_new_per_subject=%t",
 		c.Storage, c.Retention, c.Discard, c.Replicas, c.MaxBytes, c.MaxAge, c.MaxMsgSize, c.Duplicates, c.NoAck, c.DiscardNewPerSubject)
