@@ -1,5 +1,12 @@
 # NATSKit — session record
 
+## 2026-10-19 — Go 1.23.2 compatibility change
+
+- Following the owner's explicit Go 1.23.2 compatibility request, verified upstream dependency Go directives and changed the standalone module to Go 1.23.2 with matching Go-compatible dependencies/checksums.
+- Atomic two-file `go.mod`/`go.sum` commit: `a3652d86c66821d5b3261127aa377a92b52d9367`.
+- The Go 1.23.2 binary exists in the editing environment, but module download is inaccessible and nats-server is absent. Full compilation and integration must be verified on the owner's machine. Do not mark the compatibility gate PASS yet.
+- CRA's separate module still declares Go 1.26; its direct dependencies include `nats-server/v2 v2.14.6` (Go 1.26) and `grpc v1.78.0` (Go 1.24), so that application requires its own dependency compatibility review.
+
 ## 2026-10-19 — generic publisher source candidate, verification pending
 
 - Read both repositories' START_HERE and approved routing design; verified NATSKit main source baseline at `7e9cba9ab3767194051cf8567ebc8943145aef36`.
