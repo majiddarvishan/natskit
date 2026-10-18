@@ -135,9 +135,25 @@ func (c *Client) Publish(ctx context.Context, alias string, payload []byte, mess
 	return err
 }
 
+// PublishOptions controls optional broker-side publish assertions. It does not
+// grant the publisher ownership of any Stream or Consumer.
+type PublishOptions struct {
+	// ExpectedStream, when set, must match the actual capturing JetStream Stream.
+	// Leave empty to accept a genuine PubAck from any broker-owned capture.
+	ExpectedStream string
+}
+
 // PublishConfirmed reports actual JetStream PubAck metadata, not execution
-// success in any downstream application.
+// success in any downstream application. The configured outbound subject does
+// not need to belong to any Stream in the caller's managed topology.
 func (c *Client) PublishConfirmed(ctx context.Context, alias string, payload []byte, messageID string) (PublishReceipt, error) {
+	return c.PublishConfirmedWithOptions(ctx, alias, payload, messageID, PublishOptions{})
+}
+
+// PublishConfirmedWithOptions publishes to a configured concrete subject. An
+// expected Stream is an assertion on broker capture, not a managed resource.
+// Publishing never provisions or changes Streams/Consumers.
+func (c *Client) PublishConfirmedWithOptions(ctx context.Context, alias string, payload []byte, messageID string, options PublishOptions) (PublishReceipt, error) {
 	if err := ctx.Err(); err != nil {
 		return PublishReceipt{}, err
 	}
@@ -145,7 +161,13 @@ func (c *Client) PublishConfirmed(ctx context.Context, alias string, payload []b
 	if err != nil {
 		return PublishReceipt{}, err
 	}
+	if options.ExpectedStream != "" && !resourceName.MatchString(options.ExpectedStream) {
+		return PublishReceipt{}, fmt.Errorf("invalid expected JetStream Stream %q", options.ExpectedStream)
+	}
 	if c.JS == nil {
+		if options.ExpectedStream != "" {
+			return PublishReceipt{}, errors.New("expected JetStream Stream requires JetStream publishing")
+		}
 		if messageID != "" { /* Core NATS does not implement deduplication. */
 		}
 		if err := c.Conn.Publish(subject, payload); err != nil {
@@ -153,29 +175,24 @@ func (c *Client) PublishConfirmed(ctx context.Context, alias string, payload []b
 		}
 		return PublishReceipt{}, c.Conn.FlushWithContext(ctx)
 	}
-	target := ""
-	for _, stream := range c.Topology.Streams {
-		for _, pattern := range stream.Subjects {
-			if patternCovers(pattern, subject) {
-				target = stream.Name
-				break
-			}
-		}
-	}
-	if target == "" {
-		return PublishReceipt{}, fmt.Errorf("subject %q not covered by configured Streams", alias)
-	}
 	msg := &nats.Msg{Subject: subject, Data: payload}
 	if messageID != "" {
 		msg.Header = nats.Header{}
 		msg.Header.Set(nats.MsgIdHdr, messageID)
 	}
-	ack, err := c.JS.PublishMsg(msg, nats.Context(ctx))
-	if err != nil {
-		return PublishReceipt{}, fmt.Errorf("publish JetStream: %w", err)
+	publishOptions := []nats.PubOpt{nats.Context(ctx)}
+	if options.ExpectedStream != "" {
+		publishOptions = append(publishOptions, nats.ExpectStream(options.ExpectedStream))
 	}
-	if ack == nil || ack.Stream != target {
-		return PublishReceipt{}, fmt.Errorf("PubAck did not confirm configured Stream %s", target)
+	ack, err := c.JS.PublishMsg(msg, publishOptions...)
+	if err != nil {
+		return PublishReceipt{}, fmt.Errorf("publish JetStream subject %q: %w", subject, err)
+	}
+	if ack == nil || ack.Stream == "" || ack.Sequence == 0 {
+		return PublishReceipt{}, fmt.Errorf("JetStream broker did not return a valid PubAck for subject %q", subject)
+	}
+	if options.ExpectedStream != "" && ack.Stream != options.ExpectedStream {
+		return PublishReceipt{}, fmt.Errorf("JetStream PubAck Stream %q does not match expected %q", ack.Stream, options.ExpectedStream)
 	}
 	return PublishReceipt{JetStream: true, Stream: ack.Stream, Sequence: ack.Sequence, Duplicate: ack.Duplicate}, nil
 }
