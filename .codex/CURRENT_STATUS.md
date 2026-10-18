@@ -1,12 +1,12 @@
 # NATSKit — current status
 
-## 2026-10-19 — Owner-reported Go 1.23.2 quality gate (partial terminal capture)
+## 2026-10-19 — Owner-confirmed strict quality gate PASS
 
 - Following Go 1.23.2 compatibility commit `a3652d86` and formatting fix `ba588d84`, the owner ran `GOTOOLCHAIN=local task verify:strict` with `nats-server v2.14.6`.
 - Owner output confirms `gofmt -l *.go` empty; `fmt:check` PASS; `go mod tidy` and `git diff --exit-code -- go.mod go.sum` PASS (no dependency drift).
 - `go test -count=1 ./...` PASS (`20.098s`); `go test -race -count=1 ./...` PASS (`20.601s`).
-- The captured output ends on the **invocation** `task: [go:vet] go vet ./...` without a shell prompt, exit code or later task-completion marker. Record vet/final strict-command exit status as **not yet evidenced**, not independently PASS.
-- These results cover the current generic publisher implementation and Go 1.23.2 module candidate. Local toolchain use is requested by `GOTOOLCHAIN=local`, but the output does not show the owner's `go version`; record exact local toolchain version as owner-intended, not independently observed.
+- The original test transcript ended on `task: [go:vet] go vet ./...`; immediately afterward the owner confirmed `echo $?` returned `0`. Therefore `go vet` and the whole `GOTOOLCHAIN=local task verify:strict` command **PASS (owner-provided evidence)**.
+- These results cover the current generic publisher implementation and Go 1.23.2 module candidate. The output does not include `go version`; although `GOTOOLCHAIN=local` was used, the owner's exact installed Go toolchain version was not separately printed. Strict gate status is PASS, not a release approval.
 - No release/tag, CRA dependency update, runtime broker mutation or deployment is implied.
 
 
