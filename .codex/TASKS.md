@@ -2,9 +2,9 @@
 
 This is the **only current NATSKit backlog**. Do not import another application's tickets, historical unchecked boxes or broad feature wishlists.
 
-## OPEN — Go 1.23.2 toolchain acceptance (2026-10-19)
+## Go 1.23.2 compatibility — main functional gates PASS; final strict completion pending (2026-10-19)
 
-The Go 1.23.2 `go.mod`/`go.sum` compatibility candidate was committed (`a3652d86`) with Go-1.23-compatible dependency versions. The independent `GOTOOLCHAIN=local task verify:strict` result is **PENDING**, including dependency download, real Go compilation, race/vet and disposable broker tests. This is not release approval. Review external dependency security implications of version selection before any release.
+The Go 1.23.2 module/dependency candidate was committed at `a3652d86`; formatting follow-up at `ba588d84`. Owner ran `GOTOOLCHAIN=local task verify:strict` with `nats-server v2.14.6` and provided evidence for clean gofmt, unchanged `go.mod`/`go.sum` after `go mod tidy`, successful `go test -count=1 ./...` (20.098s) and successful `go test -race -count=1 ./...` (20.601s). The output stops at `go vet ./...` with no exit status; **vet and final strict command exit remain unconfirmed** from this capture. No release approval; check dependency security before release.
 
 ## APPROVED NEW WORK — 2026-10-19: generic publish addressing independent of Stream ownership
 
