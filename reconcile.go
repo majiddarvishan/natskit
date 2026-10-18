@@ -90,18 +90,18 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 			return result, &ReconcileBlocked{
 				Code: "JS_STREAM_POLICY_DRIFT", Resource: "stream/" + want.Name,
 				Current: streamPolicySummary(info.Config), Desired: streamPolicySummary(want),
-				Reason: "persistent Stream policies differ from the approved topology",
-				Risk: "changing quotas, retention or storage may evict messages or affect availability",
+				Reason:          "persistent Stream policies differ from the approved topology",
+				Risk:            "changing quotas, retention or storage may evict messages or affect availability",
 				SuggestedAction: "restore compatible settings or schedule a backup-backed operator-reviewed change; never delete the JetStream data directory",
 			}
 		}
 		if !subjectsContained(info.Config.Subjects, want.Subjects) {
 			return result, &ReconcileBlocked{
 				Code: "JS_STREAM_SUBJECT_DRIFT", Resource: "stream/" + want.Name,
-				Current: fmt.Sprintf("%q", info.Config.Subjects),
-				Desired: fmt.Sprintf("%q", want.Subjects),
-				Reason: "configured subjects remove or replace an existing Stream capture",
-				Risk: "external producers may still publish on the removed subjects, and previously retained data or existing durable filters may become stranded",
+				Current:         fmt.Sprintf("%q", info.Config.Subjects),
+				Desired:         fmt.Sprintf("%q", want.Subjects),
+				Reason:          "configured subjects remove or replace an existing Stream capture",
+				Risk:            "external producers may still publish on the removed subjects, and previously retained data or existing durable filters may become stranded",
 				SuggestedAction: "restore the old subject mapping to recover, or coordinate a verified writer/consumer drain and lossless cutover; never delete the Stream or data directory",
 			}
 		}
@@ -128,24 +128,24 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 		if info.Config.FilterSubject != want.Config.FilterSubject ||
 			!sortedEqual(info.Config.FilterSubjects, want.Config.FilterSubjects) {
 			return result, &ReconcileBlocked{
-				Code: "JS_CONSUMER_FILTER_DRIFT",
-				Resource: "consumer/" + want.Stream + "/" + want.Config.Durable,
-				Current: fmt.Sprintf("filter=%q filters=%q", info.Config.FilterSubject, info.Config.FilterSubjects),
-				Desired: fmt.Sprintf("filter=%q filters=%q", want.Config.FilterSubject, want.Config.FilterSubjects),
+				Code:       "JS_CONSUMER_FILTER_DRIFT",
+				Resource:   "consumer/" + want.Stream + "/" + want.Config.Durable,
+				Current:    fmt.Sprintf("filter=%q filters=%q", info.Config.FilterSubject, info.Config.FilterSubjects),
+				Desired:    fmt.Sprintf("filter=%q filters=%q", want.Config.FilterSubject, want.Config.FilterSubjects),
 				AckPending: info.NumAckPending, NumPending: info.NumPending,
-				Reason: "durable filter differs from the configured result subject",
-				Risk: "an uncoordinated filter update may skip old or in-flight results and lose cursor continuity",
+				Reason:          "durable filter differs from the configured result subject",
+				Risk:            "an uncoordinated filter update may skip old or in-flight results and lose cursor continuity",
 				SuggestedAction: "restore the previous result subject mapping, or verify a coordinated drain and cursor-preserving migration; never delete and recreate the durable automatically",
 			}
 		}
 		return result, &ReconcileBlocked{
-			Code: "JS_CONSUMER_POLICY_DRIFT",
-			Resource: "consumer/" + want.Stream + "/" + want.Config.Durable,
-			Current: consumerPolicySummary(info.Config),
-			Desired: consumerPolicySummary(want),
+			Code:       "JS_CONSUMER_POLICY_DRIFT",
+			Resource:   "consumer/" + want.Stream + "/" + want.Config.Durable,
+			Current:    consumerPolicySummary(info.Config),
+			Desired:    consumerPolicySummary(want),
 			AckPending: info.NumAckPending, NumPending: info.NumPending,
-			Reason: "durable ACK/delivery configuration differs from the approved topology",
-			Risk: "changing delivery settings without a review may affect redelivery or acknowledgement safety",
+			Reason:          "durable ACK/delivery configuration differs from the approved topology",
+			Risk:            "changing delivery settings without a review may affect redelivery or acknowledgement safety",
 			SuggestedAction: "restore the previous policy or plan a drained and verified deployment; preserve the durable and its ACK cursor",
 		}
 	}
