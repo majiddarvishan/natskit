@@ -142,7 +142,7 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 			Code:       "JS_CONSUMER_POLICY_DRIFT",
 			Resource:   "consumer/" + want.Stream + "/" + want.Config.Durable,
 			Current:    consumerPolicySummary(info.Config),
-			Desired:    consumerPolicySummary(want),
+			Desired:    consumerPolicySummary(want.Config),
 			AckPending: info.NumAckPending, NumPending: info.NumPending,
 			Reason:          "durable ACK/delivery configuration differs from the approved topology",
 			Risk:            "changing delivery settings without a review may affect redelivery or acknowledgement safety",
