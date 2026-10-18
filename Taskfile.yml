@@ -22,3 +22,11 @@ tasks:
       - task: go:test
       - task: go:race
       - task: go:vet
+  verify:strict:
+    desc: Independent source and disposable JetStream gate (no silently skipped broker tests)
+    preconditions:
+      - sh: command -v nats-server >/dev/null 2>&1
+        msg: Install a local disposable-test nats-server binary before running verify:strict
+    cmds:
+      - nats-server -v
+      - task: verify

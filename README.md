@@ -2,7 +2,9 @@
 
 Independent Go module: `github.com/majiddarvishan/natskit`. No import from CRA
 Bridge, SARA, Telara, Protobuf, Postgres, fluxlog, or application-specific code.
-Requires Go 1.26 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance.
+Requires Go 1.26 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance
+and [the standalone engineering handoff](.codex/START_HERE.md) for current
+architecture, decisions, status, task register and next-chat instructions.
 
 Consumers should pin an immutable commit until a semantic release is approved:
 
@@ -90,6 +92,13 @@ go vet ./...
 ```
 
 `task verify` runs the same formatting, dependency, unit, race and vet gates.
+**For independent release-readiness evidence use `task verify:strict`: it first
+requires `nats-server` on `PATH`, prints the broker version, and then runs
+`task verify` unchanged.** This prevents reporting a complete disposable
+JetStream gate when the broker executable is missing. Tests always use their
+own loopback ports and temporary data directories; no running external broker
+is required. Record any test skips separately.
+
 CI installs `nats-server` v2.14.6 so disposable integration tests do not skip,
 and repeats the controlled three-node failover drill three times under race.
 The worker uses ordinary reconnect; transparent automatic pull-subscription
