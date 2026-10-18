@@ -2,7 +2,7 @@
 
 Independent Go module: `github.com/majiddarvishan/natskit`. No import from CRA
 Bridge, SARA, Telara, Protobuf, Postgres, fluxlog, or application-specific code.
-Requires Go 1.26 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance
+Requires Go 1.23.2 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance
 and [the standalone engineering handoff](.codex/START_HERE.md) for current
 architecture, decisions, status, task register and next-chat instructions.
 
