@@ -16,13 +16,27 @@ import (
 // Client is an application-independent transport. It never creates resources
 // during ordinary application startup. A caller owns the Client lifecycle.
 type Client struct {
-	Config   Config
-	Topology Resolved
-	Conn     *nats.Conn
+	Config         Config
+	Topology       Resolved
+	Reconciliation ReconcileReport
+	Conn           *nats.Conn
 	JS       nats.JetStreamContext
 }
 
+// Connect is read-only and preserves the existing verify-only contract.
 func Connect(ctx context.Context, cfg Config) (*Client, error) {
+	return connect(ctx, cfg, false)
+}
+
+// ConnectReconciled is an explicit opt-in managed bootstrap. It creates missing
+// resources and can add Stream subjects, but never removes a subject, deletes a
+// resource, changes a Consumer filter, or modifies retention/ACK policies.
+// Unsafe drift returns an actionable error before any mutation.
+func ConnectReconciled(ctx context.Context, cfg Config) (*Client, error) {
+	return connect(ctx, cfg, true)
+}
+
+func connect(ctx context.Context, cfg Config, reconcile bool) (*Client, error) {
 	topology, err := cfg.Resolve()
 	if err != nil {
 		return nil, err
@@ -74,7 +88,14 @@ func Connect(ctx context.Context, cfg Config) (*Client, error) {
 			return nil, err
 		}
 		client.JS = js
-		if err := Verify(ctx, js, topology); err != nil {
+		if reconcile {
+			report, err := Reconcile(ctx, js, topology)
+			if err != nil {
+				nc.Close()
+				return nil, fmt.Errorf("JetStream managed startup: %w", err)
+			}
+			client.Reconciliation = report
+		} else if err := Verify(ctx, js, topology); err != nil {
 			nc.Close()
 			return nil, fmt.Errorf("JetStream topology verify failed (never auto-provisioned): %w", err)
 		}
