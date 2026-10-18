@@ -2,7 +2,7 @@
 
 ## ACCEPTED TARGET (2026-10-19; code work pending)
 
-[Publisher/Stream ownership separation](PUBLISH_SUBJECT_INDEPENDENCE.md) is the forward design: concrete publish Subjects are independent of the caller's managed Streams. Client.PublishConfirmed must publish to an existing broker capture with a genuine JetStream PubAck and optional expected Stream assertion, with no implicit Stream/Consumer management. The existing implementation described below still restricts publishing to configured managed Streams; that is what \`NK-PUB-01..03\` must correct. No message migration or implicit consumer-filter reset.
+[Publisher/Stream ownership separation](PUBLISH_SUBJECT_INDEPENDENCE.md) is the forward design: concrete publish Subjects are independent of the caller's managed Streams. Client.PublishConfirmed must publish to an existing broker capture with a genuine JetStream PubAck and optional expected Stream assertion, with no implicit Stream/Consumer management. The post-approval source candidate adds a generic publish path and optional broker-side expected Stream; verification remains pending for \`NK-PUB-01..03\`. No message migration or implicit consumer-filter reset.
 
 ## Config and isolation
 
