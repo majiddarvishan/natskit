@@ -1,5 +1,11 @@
 # NATSKit — accepted decisions
 
+## 2026-10-19 — ACTIVE OWNER DECISION: outbound Subject != Stream ownership
+
+Use [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) as the current approved API contract and [TASKS.md](TASKS.md) for implementation tickets. A NATSKit publisher must not need to own the Stream capturing its configured Subject. JetStream PubAck verification (including an optional expected Stream) is separate from resource ownership. Stream/Consumer provisioning is explicit and owned by the receiver/operator. Historical messages are independent; reconfiguring subjects does not migrate data or reset Durables.
+
+**Supersedes** any historical inference from \`Client.PublishConfirmed\` target lookup that publishers must declare every destination in their managed topology. Preserve \`subject_update_policy=replace\` for *actual owned-resource capture changes*; do not add application-specific \`cancel_external_stream\` API to the standalone library. Source work is OPEN, not tested or released.
+
 | ID | Decision | Reason / guardrail |
 | --- | --- | --- |
 | NK-D01 | Keep this as an independent Go module with no application imports. | Library is reusable across projects and tested in isolation. |

@@ -2,6 +2,19 @@
 
 This is the **only current NATSKit backlog**. Do not import another application's tickets, historical unchecked boxes or broad feature wishlists.
 
+## APPROVED NEW WORK — 2026-10-19: generic publish addressing independent of Stream ownership
+
+**Authoritative design:** [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md). These are **new OPEN tasks**, distinct from completed \`NK-01\` through \`NK-08\`. In particular, keep completed \`NK-08\` explicit \`subject_update_policy=replace\`: it is a legitimate *managed capture* feature, not the solution for publisher address correction.
+
+| Ticket | Priority | State | Acceptance |
+| --- | --- | --- | --- |
+| NK-PUB-01 | P0 | OPEN | \`Client.PublishConfirmed\` publishes to any configured concrete outbound Subject even if the caller owns no matching Stream, assuming the JetStream broker captures the Subject; no provisioning side effects. Preserve Core NATS semantics. |
+| NK-PUB-02 | P0 | OPEN | Return genuine JetStream PubAck (Stream, sequence, duplicate), with optional expected-Stream assertion independent of ownership. Mismatch/unavailable capture and permissions fail clearly; no silent Core fallback, no imaginary business success. |
+| NK-PUB-03 | P0 | OPEN | Ensure \`Connect\`/\`Verify\` versus \`ConnectReconciled\`/\`Reconcile\` scope to **owned** Streams/Consumers; never auto-manage publisher destinations. Disposable A/B bidirectional Subject1/Subject2 -> X/Y, independent message histories, unchanged existing broker state, focused failure/regression tests. |
+
+Do NATSKit first, record actual tests (focused then \`task verify:strict\` once). CRA later removes unverified \`cancel_external_stream\` and adopts generic API. **No live broker change, no implicit tag/release or GitHub Actions.**
+
+
 ## DONE — repository independence and handoff
 
 - **NK-01 — Independent `.codex` structure.** Add self-contained start, context, architecture, decisions, status, tasks, session and next-chat documentation. Acceptance: a new chat can continue using this repository alone.

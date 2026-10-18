@@ -1,5 +1,12 @@
 # NATSKit — session record
 
+## 2026-10-19 — approved generic Publisher design and compact cross-repo handoff
+
+- Owner wants two apps exchanging independent messages over two configured Subjects, with ordinary later remapping to X/Y. Publisher must not own the receiver's Stream; broker capture and receiver Durable provisioning belong to their owners.
+- Existing NATSKit PubAck logic incorrectly couples external publish routing to managed Stream topology; this is a new generic task. Design and P0 tickets NK-PUB-01/02/03 are recorded; no code or tests changed in NATSKit for this approval.
+- CRA's specific \`cancel_external_stream\` implementation on its feature branch is unverified and rejected as unnecessary special-casing; CRA will safely remove it after NATSKit generic implementation, with focused disposable tests.
+- Preserve \`subject_update_policy=replace\` as a separate valid feature, no forced migrations or replay, no releases/Tags/CI/runtime mutations. Next work: NATSKit first, CRA second.
+
 ## 2026-10-18 — first independent engineering handoff
 
 1. Inspected the repository's real remote `main` at `25f0db6b10c59b07228c6ed17b2c3db3026655cb` and the full repository tree. There was no pre-existing `.codex` directory.

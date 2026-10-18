@@ -1,5 +1,7 @@
 # NATSKit — start here
 
+**NEW OWNER-APPROVED PUBLISH ARCHITECTURE (2026-10-19):** Read [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) first. Outbound subjects need not belong to publisher-managed Streams; new \`NK-PUB-01..03\` tasks in [TASKS.md](TASKS.md) are OPEN. Older implementation prose is historical where it implies required ownership. The short new-chat prompt is [NEXT_CHAT_PROMPT.md](NEXT_CHAT_PROMPT.md). No new source tests or release performed for this documentation handoff.
+
 This is the **independent** engineering handoff for the Go module `github.com/majiddarvishan/natskit`. It is not an application deployment plan. Read these files in order:
 
 1. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — scope, repository and version contract.
