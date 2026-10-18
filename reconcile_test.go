@@ -176,3 +176,14 @@ func TestDisposableReconcileConcurrentManagedReplicas(t *testing.T) {
 		}
 	}
 }
+
+func TestPolicySummariesExplainActualSettings(t *testing.T) {
+	stream := streamPolicySummary(nats.StreamConfig{MaxBytes: 123, Replicas: 1})
+	if !strings.Contains(stream, "max_bytes=123") || !strings.Contains(stream, "replicas=1") {
+		t.Fatalf("stream policy summary omitted actual values: %s", stream)
+	}
+	consumer := consumerPolicySummary(nats.ConsumerConfig{MaxAckPending: 128})
+	if !strings.Contains(consumer, "max_ack_pending=128") {
+		t.Fatalf("consumer policy summary omitted actual values: %s", consumer)
+	}
+}

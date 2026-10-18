@@ -33,7 +33,7 @@ type ReconcileBlocked struct {
 }
 
 func (e *ReconcileBlocked) Error() string {
-	if e.Code == "JS_CONSUMER_FILTER_DRIFT" {
+	if strings.HasPrefix(e.Code, "JS_CONSUMER_") {
 		return fmt.Sprintf("code=%s resource=%s current=%s desired=%s ack_pending=%d num_pending=%d reason=%q risk=%q suggested_action=%q; refusing update",
 			e.Code, e.Resource, e.Current, e.Desired, e.AckPending, e.NumPending, e.Reason, e.Risk, e.SuggestedAction)
 	}
@@ -89,7 +89,7 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 		if !sameStream(normalized, want) {
 			return result, &ReconcileBlocked{
 				Code: "JS_STREAM_POLICY_DRIFT", Resource: "stream/" + want.Name,
-				Current: "existing Stream settings", Desired: "configured Stream settings",
+				Current: streamPolicySummary(info.Config), Desired: streamPolicySummary(want),
 				Reason: "persistent Stream policies differ from the approved topology",
 				Risk: "changing quotas, retention or storage may evict messages or affect availability",
 				SuggestedAction: "restore compatible settings or schedule a backup-backed operator-reviewed change; never delete the JetStream data directory",
@@ -141,8 +141,9 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 		return result, &ReconcileBlocked{
 			Code: "JS_CONSUMER_POLICY_DRIFT",
 			Resource: "consumer/" + want.Stream + "/" + want.Config.Durable,
-			Current: "existing delivery and acknowledgement policy",
-			Desired: "configured delivery and acknowledgement policy",
+			Current: consumerPolicySummary(info.Config),
+			Desired: consumerPolicySummary(want),
+			AckPending: info.NumAckPending, NumPending: info.NumPending,
 			Reason: "durable ACK/delivery configuration differs from the approved topology",
 			Risk: "changing delivery settings without a review may affect redelivery or acknowledgement safety",
 			SuggestedAction: "restore the previous policy or plan a drained and verified deployment; preserve the durable and its ACK cursor",
@@ -226,6 +227,17 @@ func subjectsContained(current, desired []string) bool {
 		}
 	}
 	return len(current) <= len(desired)
+}
+
+
+func streamPolicySummary(c nats.StreamConfig) string {
+	return fmt.Sprintf("storage=%v retention=%v discard=%v replicas=%d max_bytes=%d max_age=%s max_msg_size=%d duplicate_window=%s no_ack=%t discard_new_per_subject=%t",
+		c.Storage, c.Retention, c.Discard, c.Replicas, c.MaxBytes, c.MaxAge, c.MaxMsgSize, c.Duplicates, c.NoAck, c.DiscardNewPerSubject)
+}
+
+func consumerPolicySummary(c nats.ConsumerConfig) string {
+	return fmt.Sprintf("ack_policy=%v deliver_policy=%v ack_wait=%s max_deliver=%d max_ack_pending=%d backoff=%v replay_policy=%v deliver_subject=%q deliver_group=%q headers_only=%t",
+		c.AckPolicy, c.DeliverPolicy, c.AckWait, c.MaxDeliver, c.MaxAckPending, c.BackOff, c.ReplayPolicy, c.DeliverSubject, c.DeliverGroup, c.HeadersOnly)
 }
 
 // ReconcileErrorCode extracts the stable failure classification for application
