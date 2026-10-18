@@ -1,10 +1,10 @@
 # NATSKit — current status
 
-## LATEST — 2026-10-19 architecture approved; new NK-PUB tasks OPEN
+## LATEST — 2026-10-19 generic publisher candidate committed; validation PENDING
 
 User clarified the two-app subject reconfiguration A/B -> X/Y model and explicitly rejected CRA's Cancel-specific \`cancel_external_stream\` workaround as unnecessary. A publisher's configured address does not grant it Stream ownership. Implement a **generic** NATSKit publish path without requiring a managed Stream for that outbound Subject, with genuine PubAck and optional expected Stream. Existing read-only verification/managed reconciliation remain explicit. Preserve completed NK-08 \`replace\` for Stream capture changes, separate from routing.
 
-See [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) and [TASKS.md](TASKS.md). No source edits/tests were run for this decision; NATSKit main existing quality gate reports predate new code. Do not claim implementation or a new release/tag.
+See [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) and [TASKS.md](TASKS.md). Follow-up source commits implement generic publishing with optional broker Stream assertion, allow zero managed Streams, and add independent disposable A/B -> X/Y tests. This editing environment has Go 1.23.2 (the module requires Go 1.26), no installed `nats-server`, and no dependency-download network. **No Go test, race, vet or strict gate has been executed on this source candidate.** Earlier accepted quality gates predate this code. Do not claim validation or a new release/tag.
 
 **Reviewed:** 2026-10-18. Source-of-truth is the actual remote `main`, not these historical SHA values.
 
