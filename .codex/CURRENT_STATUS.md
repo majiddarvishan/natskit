@@ -1,5 +1,13 @@
 # NATSKit — current status
 
+## 2026-10-19 — Go 1.23.2 compatibility candidate committed
+
+- Owner requested Go 1.23.2 compatibility rather than retaining the original Go 1.26 requirement.
+- Confirmed that `nats.go v1.51.0` requires Go 1.25 and its transitive modules require newer Go. Replaced the complete direct/indirect graph with Go 1.23-compatible published versions: `nats.go v1.48.0`, `compress v1.18.0`, `nkeys v0.4.11`, `x/crypto v0.37.0`, `x/sys v0.32.0`; set `go 1.23.2`.
+- Committed `go.mod` and `go.sum` together at `a3652d86c66821d5b3261127aa377a92b52d9367`. Checksums were cross-referenced with upstream published Go module checksums, not locally generated.
+- **Validation remains OPEN**: the source-editing environment has Go 1.23.2 but no cached Go modules, no external module download network, and no local `nats-server`. No compilation, Race Detector, Vet or disposable integration acceptance is claimed. Run `GOTOOLCHAIN=local task verify:strict` on a machine with Go 1.23.2, package download access and nats-server installed.
+- This is a post-v0.1.0 compatibility/source change; no new release, tag or deployment was authorized.
+
 ## LATEST — 2026-10-19 generic publisher candidate committed; validation PENDING
 
 User clarified the two-app subject reconfiguration A/B -> X/Y model and explicitly rejected CRA's Cancel-specific \`cancel_external_stream\` workaround as unnecessary. A publisher's configured address does not grant it Stream ownership. Implement a **generic** NATSKit publish path without requiring a managed Stream for that outbound Subject, with genuine PubAck and optional expected Stream. Existing read-only verification/managed reconciliation remain explicit. Preserve completed NK-08 \`replace\` for Stream capture changes, separate from routing.
