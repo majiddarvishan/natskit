@@ -40,3 +40,10 @@ task verify:strict
 ```
 
 The library does not require a Docker Compose deployment, PostgreSQL, Protobuf, or an application-specific config to pass these gates.
+
+## IN PROGRESS — NK-08: explicit Subject replacement policy (2026-10-18)
+
+- Owner authorized `jetstream.subject_update_policy = additive | replace`, default `additive`.
+- Implemented source candidate: the strict normal `Connect` stays read-only; managed `Reconcile` checks all Streams/Consumers before replacing capture subjects only with `replace`; reject absent/nonpositive MaxAge on affected Stream; preserve all Stream/Consumer identities, messages, retention and ACK policies. No purge or delete; report replacements distinctly. Generic library contains no CRA-specific subject names.
+- Regression added for default refusal, positive opt-in, unchanged Consumer filter, retention, stored message preservation, new capture and idempotence.
+- **OPEN:** independent local `task verify:strict` on post-release commit, including real disposable NATS. `v0.1.0` published tag remains immutable; no new tag/release approved.

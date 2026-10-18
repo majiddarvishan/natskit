@@ -302,3 +302,27 @@ func TestVerifyDetectsUnsafeUntrackedStreamAndConsumerDrift(t *testing.T) {
 		t.Fatal("headers-only consumer must not silently drop payload")
 	}
 }
+
+func TestSubjectUpdatePolicyValidation(t *testing.T) {
+	cfg := sample(t)
+	parsed, err := cfg.Resolve()
+	if err != nil || parsed.SubjectUpdatePolicy != "additive" {
+		t.Fatalf("default policy: %+v err=%v", parsed.SubjectUpdatePolicy, err)
+	}
+	cfg.JetStream.SubjectUpdatePolicy = "replace"
+	parsed, err = cfg.Resolve()
+	if err != nil || parsed.SubjectUpdatePolicy != "replace" {
+		t.Fatalf("explicit replace policy: %q err=%v", parsed.SubjectUpdatePolicy, err)
+	}
+	for _, bad := range []string{"unsafe", "REPLACE", "ignore"} {
+		cfg.JetStream.SubjectUpdatePolicy = bad
+		if _, err := cfg.Resolve(); err == nil {
+			t.Fatalf("invalid policy %q accepted", bad)
+		}
+	}
+	cfg.JetStream.SubjectUpdatePolicy = "replace"
+	cfg.JetStream.Enabled = false
+	if _, err := cfg.Resolve(); err == nil {
+		t.Fatal("disabled JetStream must reject replace policy")
+	}
+}

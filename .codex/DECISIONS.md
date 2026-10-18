@@ -23,3 +23,7 @@ The owner approved publishing exactly `v0.1.0` after the NATSKit isolated strict
 ## Release completion (2026-10-18)
 
 The official `v0.1.0` tag and GitHub Release have now been verified, with the annotated tag targeting commit `0e27d162f0c43225e366da66d340b3f767d667d8`. Historical statements about a pending publication are superseded. Tag immutability is mandatory; no automatic tag move, API changes or other version is approved.
+
+## NK-D12 — Explicit managed Stream Subject replacement (2026-10-18)
+
+Owner approved a new **post-v0.1.0** opt-in `subject_update_policy` with `additive` default and `replace` override. Its scope is exclusively the Stream capture Subject list, with positive existing MaxAge, full topology preflight and concurrency checks; no data purge, Stream/Consumer deletion, retention change, Durable filter or ACK policy migration. Removed subjects stop capturing *future* messages; clients/customers accept responsibility for external cutover. Earlier blanket no-replacement rules remain the `additive` default and must be read in light of this explicit new decision.

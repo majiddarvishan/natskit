@@ -47,3 +47,9 @@
 - Owner confirmed completion of the release operation. Verified directly from GitHub: [release `v0.1.0`](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0) is **published**, not draft and not prerelease; published at `2026-10-18T16:22:55Z`.
 - `refs/tags/v0.1.0` points to annotated tag object `d232039c734e626b854669b62e82260c6fdd6a4d`, which points to exact commit `0e27d162f0c43225e366da66d340b3f767d667d8`. The tag exists; prior historical claims of PENDING are superseded.
 - No changes to the verified Go library source were required for publication. Later documentation updates to main are not included in this tag. `NK-04` and `NK-05` are DONE; `NK-06` remains BLOCKED, `NK-07` DEFERRED.
+
+## 2026-10-18 — Opt-in post-v0.1.0 Stream capture replacement
+
+- Owner explicitly approved `subject_update_policy=replace` with `additive` safe default to simplify changing application NATS wire subjects. Code and disposable tests are prepared for the *independent* NATSKit repository; the `v0.1.0` published artifact/tag is unchanged.
+- A replacement does not purge existing messages or alter identity, Durable filters or policies; a positive existing MaxAge is required for automatic expiration. It can stop future capture from removed subjects. External clients own their changeover.
+- This code change has **NOT yet passed an owner-run `task verify:strict`**. Do not treat prior `v0.1.0` gate as post-change verification; do not tag/release or alter any production broker as part of implementation.

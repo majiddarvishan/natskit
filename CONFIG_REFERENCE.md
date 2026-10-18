@@ -154,3 +154,27 @@ changing Durable Consumer filters, or modifying policies requires separate
 coordinated operational migration with assured publisher quiescence and
 ACK cursor continuity. Blocked changes produce structured diagnostic errors
 rather than destructive auto-repair.
+
+## Stream Subject replacement policy (after v0.1.0)
+
+`jetstream.subject_update_policy`: `additive` (default) or explicit `replace`.
+The field requires JetStream enabled. This setting applies only to managed
+`ConnectReconciled`/`Reconcile`, never read-only `Connect`/`Verify`.
+
+- `additive` refuses removing/replacing any existing Stream capture subject.
+- `replace` allows changing **only the Stream's subjects list**, after full
+  preflight of every Stream and Durable. The existing Stream must have a
+  **positive MaxAge**; old stored messages expire normally, **not immediately**.
+  Other Stream policies, all Durable policy/filter settings and broker quotas
+  remain immutable under reconciliation. No Purge/Delete calls are performed.
+- New subject capture may fail when another Stream captures it or permissions
+  forbid modification. External publisher/receiver cutover and wire contracts
+  are explicitly the application's/customer's responsibility. Different NATS
+  server instances may update concurrently; this library checks for unexpected
+  concurrent subject-set changes before destructive replacement.
+- `ReconcileReport.ReplacedStreams` counts successful subject replacements;
+  `ExpandedStreams` still counts additive-only expansions.
+
+This feature is a **post-v0.1.0 source change**, not part of published v0.1.0.
+Consumers must pin the reviewed post-release commit or request a separately
+approved future version; never silently retarget the v0.1.0 tag.

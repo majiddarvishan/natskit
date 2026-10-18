@@ -29,9 +29,11 @@ func Connect(ctx context.Context, cfg Config) (*Client, error) {
 }
 
 // ConnectReconciled is an explicit opt-in managed bootstrap. It creates missing
-// resources and can add Stream subjects, but never removes a subject, deletes a
-// resource, changes a Consumer filter, or modifies retention/ACK policies.
-// Unsafe drift returns an actionable error before any mutation.
+// resources and adds Stream subjects by default. With an explicitly configured
+// subject_update_policy=replace it may replace Stream capture subjects without
+// deleting stored messages, a Stream or a Durable. The caller owns external
+// publisher/receiver coordination. Consumer filter and retention/policy drift
+// always fail closed before changes.
 func ConnectReconciled(ctx context.Context, cfg Config) (*Client, error) {
 	return connect(ctx, cfg, true)
 }

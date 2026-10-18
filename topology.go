@@ -15,12 +15,13 @@ import (
 var resourceName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type Resolved struct {
-	InstanceID string
-	Namespace  string
-	Subjects   map[string]string
-	Streams    map[string]nats.StreamConfig
-	Consumers  map[string]ResolvedConsumer
-	Quarantine *ResolvedQuarantine
+	InstanceID          string
+	Namespace           string
+	SubjectUpdatePolicy string // additive by default; explicit replace allows subject-only Stream updates
+	Subjects            map[string]string
+	Streams             map[string]nats.StreamConfig
+	Consumers           map[string]ResolvedConsumer
+	Quarantine          *ResolvedQuarantine
 }
 
 type ResolvedConsumer struct {
@@ -174,9 +175,19 @@ func (c Config) Resolve() (Resolved, error) {
 		r.Subjects[key] = value
 	}
 	if !c.JetStream.Enabled {
+		if c.JetStream.SubjectUpdatePolicy != "" {
+			return r, errors.New("jetstream.subject_update_policy requires jetstream.enabled")
+		}
 		return r, nil
 	}
 	j := c.JetStream
+	r.SubjectUpdatePolicy = j.SubjectUpdatePolicy
+	if r.SubjectUpdatePolicy == "" {
+		r.SubjectUpdatePolicy = "additive"
+	}
+	if r.SubjectUpdatePolicy != "additive" && r.SubjectUpdatePolicy != "replace" {
+		return r, errors.New("jetstream.subject_update_policy must be additive or replace")
+	}
 	if !resourceName.MatchString(j.Namespace) {
 		return r, errors.New("jetstream.namespace is required and must contain only letters, digits, - or _")
 	}

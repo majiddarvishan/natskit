@@ -229,3 +229,119 @@ func TestDisposableReconcileBlocksUnmanagedRetentionCap(t *testing.T) {
 		t.Fatalf("refused reconciliation unexpectedly changed existing policy: %v", err)
 	}
 }
+
+func TestDisposableSubjectReplacementRequiresExplicitPolicy(t *testing.T) {
+	url := startDisposableServer(t)
+	cfg := sample(t)
+	cfg.Connection.URLs = []string{url}
+	resolved, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nc, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	js, err := nc.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	if _, err := Reconcile(ctx, js, resolved); err != nil {
+		t.Fatal(err)
+	}
+	original := resolved.Streams["COMMANDS"]
+	if original.MaxAge <= 0 {
+		t.Fatalf("replacement fixture requires positive MaxAge: %v", original.MaxAge)
+	}
+	pub, err := js.Publish(original.Subjects[0], []byte("old-retained"), nats.Context(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := resolved
+	changed.Streams = make(map[string]nats.StreamConfig, len(resolved.Streams))
+	for k, v := range resolved.Streams {
+		changed.Streams[k] = v
+	}
+	replacement := original
+	replacement.Subjects = []string{"changed.commands.subject"}
+	changed.Streams["COMMANDS"] = replacement
+	if _, err := Reconcile(ctx, js, changed); ReconcileErrorCode(err) != "JS_STREAM_SUBJECT_DRIFT" {
+		t.Fatalf("default mode must reject replacement: %v", err)
+	}
+	changed.SubjectUpdatePolicy = "replace"
+	report, err := Reconcile(ctx, js, changed)
+	if err != nil || report.ReplacedStreams != 1 || report.ExpandedStreams != 0 {
+		t.Fatalf("explicit replacement report=%+v err=%v", report, err)
+	}
+	info, err := js.StreamInfo(original.Name, nats.Context(ctx))
+	if err != nil || !sortedEqual(info.Config.Subjects, replacement.Subjects) {
+		t.Fatalf("destination capture mismatch: info=%v err=%v", info, err)
+	}
+	if info.State.Msgs != 1 {
+		t.Fatalf("replacement must not purge old stored messages, got %d", info.State.Msgs)
+	}
+	retained, err := js.GetMsg(original.Name, pub.Sequence, nats.Context(ctx))
+	if err != nil || string(retained.Data) != "old-retained" {
+		t.Fatalf("old retained message disappeared: err=%v", err)
+	}
+	if _, err := js.Publish(replacement.Subjects[0], []byte("new-captured"), nats.Context(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	report, err = Reconcile(ctx, js, changed)
+	if err != nil || report != (ReconcileReport{}) {
+		t.Fatalf("idempotent replace should be no-op report=%+v err=%v", report, err)
+	}
+}
+
+func TestDisposableSubjectReplacementPreflightStillBlocksConsumerDrift(t *testing.T) {
+	url := startDisposableServer(t)
+	cfg := sample(t)
+	cfg.Connection.URLs = []string{url}
+	resolved, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nc, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	js, err := nc.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	if _, err := Reconcile(ctx, js, resolved); err != nil {
+		t.Fatal(err)
+	}
+	changed := resolved
+	changed.SubjectUpdatePolicy = "replace"
+	changed.Streams = make(map[string]nats.StreamConfig, len(resolved.Streams))
+	for k, v := range resolved.Streams {
+		changed.Streams[k] = v
+	}
+	before := changed.Streams["COMMANDS"]
+	want := before
+	want.Subjects = []string{"different.command"}
+	changed.Streams["COMMANDS"] = want
+	changed.Consumers = make(map[string]ResolvedConsumer, len(resolved.Consumers))
+	for k, v := range resolved.Consumers {
+		changed.Consumers[k] = v
+	}
+	for k, c := range changed.Consumers {
+		c.Config.FilterSubject = "different.result"
+		changed.Consumers[k] = c
+		break
+	}
+	if _, err := Reconcile(ctx, js, changed); ReconcileErrorCode(err) != "JS_CONSUMER_FILTER_DRIFT" {
+		t.Fatalf("replacement must never bypass consumer preflight: %v", err)
+	}
+	info, err := js.StreamInfo(before.Name, nats.Context(ctx))
+	if err != nil || !sameStream(info.Config, before) {
+		t.Fatalf("preflight must not change Stream on Consumer drift: info=%v err=%v", info, err)
+	}
+}

@@ -39,14 +39,15 @@ type TLS struct {
 }
 
 type JetStreamConfig struct {
-	Enabled      bool                      `json:"enabled"`
-	Namespace    string                    `json:"namespace,omitempty"`
-	Provisioning string                    `json:"provisioning,omitempty"` // verify (runtime) or operator_only
-	Profiles     map[string]StreamSettings `json:"profiles,omitempty"`
-	Streams      map[string]StreamSpec     `json:"streams,omitempty"`
-	Defaults     Defaults                  `json:"defaults,omitempty"`
-	Consumers    map[string]ConsumerSpec   `json:"consumers,omitempty"`
-	Quarantine   *QuarantineSpec           `json:"quarantine,omitempty"`
+	Enabled             bool                      `json:"enabled"`
+	Namespace           string                    `json:"namespace,omitempty"`
+	Provisioning        string                    `json:"provisioning,omitempty"` // verify (runtime) or operator_only
+	SubjectUpdatePolicy string                    `json:"subject_update_policy,omitempty"` // additive (default) or replace
+	Profiles            map[string]StreamSettings `json:"profiles,omitempty"`
+	Streams             map[string]StreamSpec     `json:"streams,omitempty"`
+	Defaults            Defaults                  `json:"defaults,omitempty"`
+	Consumers           map[string]ConsumerSpec   `json:"consumers,omitempty"`
+	Quarantine          *QuarantineSpec           `json:"quarantine,omitempty"`
 }
 
 type Defaults struct {

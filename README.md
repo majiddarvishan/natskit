@@ -156,13 +156,26 @@ inspecting the actual winner. Since NATS cannot atomically update multiple
 resources, interruptions may leave only those non-destructive additions
 partially applied; a subsequent startup can converge safely.
 
-A changed durable filter, removed/replaced Stream subject, or policy drift
-fails closed via `ReconcileBlocked`, including a stable error code, resource
-identity, reason, risk, and suggested recovery action. Consumer-filter errors
-also contain observed pending counts. **No consumer deletion/recreation,
-message purge, or volume cleanup is ever performed.** A zero pending count
-alone cannot prove that all external producers and other application
-replicas have stopped, so it does not authorize changing the filter.
+**Stream Subject update policy:** `jetstream.subject_update_policy` is either
+`additive` (default; previously captured subjects may not be removed) or
+`replace` (explicitly update the existing Stream's capture subjects to the
+configured list). The policy affects only `ConnectReconciled` / `Reconcile`,
+not the read-only `Connect`. A subject replacement checks ALL Stream and
+Durable policies before mutation and requires the existing Stream to have
+a **positive MaxAge** so retained old messages expire according to the
+existing retention. No stored messages are purged, and no Stream or Durable
+is deleted. Changing Subject capture may stop receiving future messages
+on removed subjects; the caller/customer owns coordination of external
+publishers, subscribers and wire-message contracts. `replace` does not
+permit changing Durable filters, ACK policy, retention or quotas; those
+continue to fail closed. A conflicting Stream or insufficient broker
+permissions can still reject the update. Check the final broker topology
+and do not infer business success from a PubAck.
+
+A changed Durable filter or policy drift always fails closed via
+`ReconcileBlocked`, including stable code, resource identity, reason, risk
+and suggested recovery action. Consumer-filter errors include pending counts.
+**No consumer deletion/recreation, message purge, or volume cleanup.**
 
 `Reconcile(ctx, js, resolved)` is the lower-level generic API and returns
 `ReconcileReport` with non-sensitive change counts. `ConnectReconciled`
@@ -170,9 +183,11 @@ exposes this report as `Client.Reconciliation`. The caller still decides
 whether managed startup is appropriate and owns operator-facing diagnostics,
 credentials, ACLs and cutover policy. There is no new configuration switch.
 
-Automated subject replacement and durable-filter migration **are not
-implemented** until a coordinated producer/consumer fence and a verifiable
-lossless cursor handoff exists.
+Durable-filter and cursor migration remain unsupported. Subject-only Stream
+replacement is available strictly by setting `subject_update_policy=replace`;
+the caller explicitly accepts potential loss of future capture from the
+removed subjects. The reported `ReplacedStreams` count distinguishes these
+updates from additive Stream subject expansions.
 
 ## Initial release
 

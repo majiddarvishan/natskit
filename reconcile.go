@@ -15,6 +15,7 @@ import (
 type ReconcileReport struct {
 	CreatedStreams   int
 	ExpandedStreams  int
+	ReplacedStreams  int
 	CreatedConsumers int
 }
 
@@ -42,9 +43,11 @@ func (e *ReconcileBlocked) Error() string {
 }
 
 type plannedStream struct {
-	want   nats.StreamConfig
-	create bool
-	expand bool
+	want          nats.StreamConfig
+	create        bool
+	expand        bool
+	replace       bool
+	priorSubjects []string
 }
 type plannedConsumer struct {
 	want   ResolvedConsumer
@@ -55,17 +58,24 @@ type plannedConsumer struct {
 // Missing resources and additive Stream subject updates are supported. These
 // operations preserve existing messages, consumer filters and ACK cursors.
 //
-// Replacing/removing subjects or changing a durable filter requires a
-// coordinated producer/consumer cutover: an instantaneous broker snapshot
-// cannot establish that all external writers and other CRA replicas stopped.
-// Those migrations fail closed with an actionable reason instead of silently
-// losing message capture or delivery. No Delete/Purge calls are made.
+// Subject removal/replacement requires explicitly selecting
+// subject_update_policy=replace; the caller owns producer/consumer cutover and
+// the potential loss of future capture on removed subjects. A positive MaxAge
+// is required for old messages to expire. Consumer filter/policy drift always
+// fails closed. No Delete/Purge calls are made.
 //
 // The broker cannot apply multiple API mutations atomically. On a transient
 // failure after preflight, only the above non-destructive changes may have
 // succeeded. A subsequent invocation safely converges or fails on drift.
 func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved) (ReconcileReport, error) {
 	var result ReconcileReport
+	policy := topology.SubjectUpdatePolicy
+	if policy == "" {
+		policy = "additive"
+	}
+	if policy != "additive" && policy != "replace" {
+		return result, errors.New("invalid subject_update_policy; expected additive or replace")
+	}
 	streams := make([]plannedStream, 0, len(topology.Streams))
 	missing := make(map[string]bool)
 	for _, key := range sortedStreamKeys(topology.Streams) {
@@ -95,7 +105,8 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 				SuggestedAction: "restore compatible settings or schedule a backup-backed operator-reviewed change; never delete the JetStream data directory",
 			}
 		}
-		if !subjectsContained(info.Config.Subjects, want.Subjects) {
+		isAdditive := subjectsContained(info.Config.Subjects, want.Subjects)
+		if !isAdditive && policy != "replace" {
 			return result, &ReconcileBlocked{
 				Code: "JS_STREAM_SUBJECT_DRIFT", Resource: "stream/" + want.Name,
 				Current:         fmt.Sprintf("%q", info.Config.Subjects),
@@ -105,7 +116,17 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 				SuggestedAction: "restore the old subject mapping to recover, or coordinate a verified writer/consumer drain and lossless cutover; never delete the Stream or data directory",
 			}
 		}
-		streams = append(streams, plannedStream{want: want, expand: true})
+		if !isAdditive && info.Config.MaxAge <= 0 {
+			return result, &ReconcileBlocked{
+				Code: "JS_STREAM_SUBJECT_RETENTION_DRIFT", Resource: "stream/" + want.Name,
+				Current: fmt.Sprintf("max_age=%s subjects=%q", info.Config.MaxAge, info.Config.Subjects),
+				Desired: fmt.Sprintf("max_age=%s subjects=%q", want.MaxAge, want.Subjects),
+				Reason: "subject replacement requires positive existing MaxAge for retained old messages to expire",
+				Risk: "old messages may remain indefinitely without age-based retention",
+				SuggestedAction: "configure and separately approve an expiration policy before replacing subjects; never purge automatically",
+			}
+		}
+		streams = append(streams, plannedStream{want: want, expand: true, replace: !isAdditive, priorSubjects: slices.Clone(info.Config.Subjects)})
 	}
 	consumers := make([]plannedConsumer, 0, len(topology.Consumers))
 	for _, key := range sortedConsumerKeys(topology.Consumers) {
@@ -175,7 +196,9 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 			}
 			before := info.Config
 			before.Subjects = want.Subjects
-			if !sameStream(before, want) || !subjectsContained(info.Config.Subjects, want.Subjects) {
+			if !sameStream(before, want) ||
+				(change.replace && !sortedEqual(info.Config.Subjects, change.priorSubjects)) ||
+				(!change.replace && !subjectsContained(info.Config.Subjects, want.Subjects)) {
 				return result, fmt.Errorf("Stream %s changed concurrently; refusing update", want.Name)
 			}
 			updated := info.Config
@@ -186,7 +209,11 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 					return result, fmt.Errorf("expand Stream %s subjects: %w", want.Name, err)
 				}
 			}
-			result.ExpandedStreams++
+			if change.replace {
+				result.ReplacedStreams++
+			} else {
+				result.ExpandedStreams++
+			}
 		}
 	}
 	for _, change := range consumers {

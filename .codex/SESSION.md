@@ -34,3 +34,9 @@
 
 - Owner confirmed `v0.1.0` publication. Remote GitHub tag and Release independently verified; annotated tag SHA `d232039c734e626b854669b62e82260c6fdd6a4d` targets `0e27d162f0c43225e366da66d340b3f767d667d8`, published Release is not draft/prerelease.
 - Marked `NK-05` DONE; `NK-06` and `NK-07` remain BLOCKED/DEFERRED. No Go source, tag, CI workflow, external NATS or application deployment modified.
+
+## 2026-10-18 — Opt-in managed Subject replacement feature
+
+- Owner authorized replacing Stream capture subjects automatically on explicit `jetstream.subject_update_policy=replace`, retaining `additive` as the default and refusing Consumer/Stream policy drift.
+- Implemented Go source and independent disposable tests. Full preflight, positive MaxAge and unexpected concurrent subject update checks protect the replacement path. No purge/delete/force-recreate, and old messages remain under normal retention.
+- No post-change local Go 1.26 + NATS-server test gate has been executed in this GitHub-only session; mark NK-08 pending owner verification. Existing `v0.1.0` tag remains immutable.
