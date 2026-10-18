@@ -2,6 +2,10 @@
 
 This is the **only current NATSKit backlog**. Do not import another application's tickets, historical unchecked boxes or broad feature wishlists.
 
+## OPEN — Go 1.23.2 toolchain acceptance (2026-10-19)
+
+The Go 1.23.2 `go.mod`/`go.sum` compatibility candidate was committed (`a3652d86`) with Go-1.23-compatible dependency versions. The independent `GOTOOLCHAIN=local task verify:strict` result is **PENDING**, including dependency download, real Go compilation, race/vet and disposable broker tests. This is not release approval. Review external dependency security implications of version selection before any release.
+
 ## APPROVED NEW WORK — 2026-10-19: generic publish addressing independent of Stream ownership
 
 **Authoritative design:** [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md). These are **new OPEN tasks**, distinct from completed \`NK-01\` through \`NK-08\`. In particular, keep completed \`NK-08\` explicit \`subject_update_policy=replace\`: it is a legitimate *managed capture* feature, not the solution for publisher address correction.
