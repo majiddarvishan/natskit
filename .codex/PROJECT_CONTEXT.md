@@ -5,7 +5,7 @@
 - Repository: https://github.com/majiddarvishan/natskit
 - Default development branch: `main`
 - Go module: `github.com/majiddarvishan/natskit`
-- Toolchain declared in `go.mod`: **Go 1.26.0**
+- Toolchain declared in `go.mod`: **Go 1.23.2**
 - Direct NATS dependency at audit baseline: `github.com/nats-io/nats.go v1.51.0`
 - Independent, importable NATS Core + JetStream transport, declarative broker topology validation, explicit provisioning/reconciliation, generic durable pull workers and quarantine transport.
 - This is a **library**, not a daemon; it has no runtime Compose service, database, business subjects or application-specific configuration.
