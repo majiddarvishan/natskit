@@ -40,3 +40,9 @@
 - Owner authorized replacing Stream capture subjects automatically on explicit `jetstream.subject_update_policy=replace`, retaining `additive` as the default and refusing Consumer/Stream policy drift.
 - Implemented Go source and independent disposable tests. Full preflight, positive MaxAge and unexpected concurrent subject update checks protect the replacement path. No purge/delete/force-recreate, and old messages remain under normal retention.
 - No post-change local Go 1.26 + NATS-server test gate has been executed in this GitHub-only session; mark NK-08 pending owner verification. Existing `v0.1.0` tag remains immutable.
+
+## 2026-10-18 — NK-08 reported PASS; final gofmt fix published
+
+- User initially supplied `task verify:strict` failures at `fmt:check`, specifically `reconcile.go` then `config.go`; broker executable was confirmed `nats-server v2.14.6`.
+- `reconcile.go` format fix committed at `1ca545f7e95f339c595decb4ad34f1a5ea49787d`. User ran `gofmt -w config.go`, reran strict gate, and pushed `0960ffa252277ba976e4ff282c4f639fd7eddb77` to `main`, subsequently saying **"انجام شد"**. Do not invent a pasted final strict stdout; acceptance is owner-reported.
+- NK-08 marked DONE based on owner report. Leave public `v0.1.0` tag untouched. CRA integration tests, real `go.sum` and local subject replacement startup still need separate validation. Only documentation updated in this follow-up.

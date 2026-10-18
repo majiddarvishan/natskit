@@ -23,7 +23,7 @@ This is the **only current NATSKit backlog**. Do not import another application'
 
 ## BLOCKED — not implementable safely without a cutover contract
 
-- **NK-06 — Lossless subject replacement / Durable-filter migration.** Requires explicit external publisher/replica fencing, draining, durable cursor/message proof, rollback plan and operator approval. Current behavior **must fail closed**. Never implement delete/recreate/purge as a shortcut.
+- **NK-06 — Truly lossless external cutover and Durable-filter migration.** Explicit `subject_update_policy=replace` (NK-08 DONE) changes **Stream capture only** and makes no promise of preserving future traffic on an old subject. A lossless external cutover, Durable filter/cursor migration and exact cross-process continuity still need producer fencing/draining, cursor proof and operator approval. Consumer policy drift must continue to fail closed. Never implement delete/recreate/purge as a shortcut.
 
 ## DEFERRED — no current implementation authorization
 
@@ -41,9 +41,10 @@ task verify:strict
 
 The library does not require a Docker Compose deployment, PostgreSQL, Protobuf, or an application-specific config to pass these gates.
 
-## IN PROGRESS — NK-08: explicit Subject replacement policy (2026-10-18)
+## DONE — NK-08: explicit Subject replacement policy (owner-reported strict gate, 2026-10-18)
 
 - Owner authorized `jetstream.subject_update_policy = additive | replace`, default `additive`.
 - Implemented source candidate: the strict normal `Connect` stays read-only; managed `Reconcile` checks all Streams/Consumers before replacing capture subjects only with `replace`; reject absent/nonpositive MaxAge on affected Stream; preserve all Stream/Consumer identities, messages, retention and ACK policies. No purge or delete; report replacements distinctly. Generic library contains no CRA-specific subject names.
 - Regression added for default refusal, positive opt-in, unchanged Consumer filter, retention, stored message preservation, new capture and idempotence.
-- **OPEN:** independent local `task verify:strict` on post-release commit, including real disposable NATS. `v0.1.0` published tag remains immutable; no new tag/release approved.
+- **Quality gate: owner-reported PASS.** Owner initially encountered `fmt:check` errors in `reconcile.go` and then `config.go`. Both formatting fixes were committed; final `config.go` style fix was pushed in [`0960ffa252277ba976e4ff282c4f639fd7eddb77`](https://github.com/majiddarvishan/natskit/commit/0960ffa252277ba976e4ff282c4f639fd7eddb77). Following the exact suggested sequence (`gofmt -w config.go`, `gofmt -l *.go`, `task verify:strict`, commit/push after PASS), owner confirmed **"انجام شد"**. The final full log was not pasted; record this as developer-reported acceptance, not independently inspected per-test evidence. Remote GitHub verification confirms the final style Commit exists.
+- **NK-08 DONE based on owner confirmation;** no new tag or release was requested. `v0.1.0` remains immutable. Downstream CRA `go.sum` and full application integration gate remain independently OPEN.
