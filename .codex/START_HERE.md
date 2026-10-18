@@ -1,6 +1,6 @@
 # NATSKit — start here
 
-**NEW OWNER-APPROVED PUBLISH ARCHITECTURE (2026-10-19):** Read [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) first. Outbound subjects need not belong to publisher-managed Streams; new \`NK-PUB-01..03\` tasks in [TASKS.md](TASKS.md) are OPEN. Older implementation prose is historical where it implies required ownership. The short new-chat prompt is [NEXT_CHAT_PROMPT.md](NEXT_CHAT_PROMPT.md). No new source tests or release performed for this documentation handoff.
+**NEW OWNER-APPROVED PUBLISH ARCHITECTURE (2026-10-19):** Read [PUBLISH_SUBJECT_INDEPENDENCE.md](PUBLISH_SUBJECT_INDEPENDENCE.md) first. Outbound subjects need not belong to publisher-managed Streams; \`NK-PUB-01..03\` source candidates in [TASKS.md](TASKS.md) are awaiting the strict gate. Older implementation prose is historical where it implies required ownership. The short new-chat prompt is [NEXT_CHAT_PROMPT.md](NEXT_CHAT_PROMPT.md). Post-approval code and disposable tests were committed, but execution remains unverified; module now targets Go 1.23.2. No release was performed.
 
 This is the **independent** engineering handoff for the Go module `github.com/majiddarvishan/natskit`. It is not an application deployment plan. Read these files in order:
 
