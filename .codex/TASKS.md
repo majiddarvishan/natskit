@@ -8,9 +8,9 @@ This is the **only current NATSKit backlog**. Do not import another application'
 
 | Ticket | Priority | State | Acceptance |
 | --- | --- | --- | --- |
-| NK-PUB-01 | P0 | OPEN | \`Client.PublishConfirmed\` publishes to any configured concrete outbound Subject even if the caller owns no matching Stream, assuming the JetStream broker captures the Subject; no provisioning side effects. Preserve Core NATS semantics. |
-| NK-PUB-02 | P0 | OPEN | Return genuine JetStream PubAck (Stream, sequence, duplicate), with optional expected-Stream assertion independent of ownership. Mismatch/unavailable capture and permissions fail clearly; no silent Core fallback, no imaginary business success. |
-| NK-PUB-03 | P0 | OPEN | Ensure \`Connect\`/\`Verify\` versus \`ConnectReconciled\`/\`Reconcile\` scope to **owned** Streams/Consumers; never auto-manage publisher destinations. Disposable A/B bidirectional Subject1/Subject2 -> X/Y, independent message histories, unchanged existing broker state, focused failure/regression tests. |
+| NK-PUB-01 | P0 | IMPLEMENTED / GATE PENDING | \`Client.PublishConfirmed\` publishes to any configured concrete outbound Subject even if the caller owns no matching Stream, assuming the JetStream broker captures the Subject; no provisioning side effects. Preserve Core NATS semantics. |
+| NK-PUB-02 | P0 | IMPLEMENTED / GATE PENDING | Return genuine JetStream PubAck (Stream, sequence, duplicate), with optional expected-Stream assertion independent of ownership. Mismatch/unavailable capture and permissions fail clearly; no silent Core fallback, no imaginary business success. |
+| NK-PUB-03 | P0 | IMPLEMENTED / GATE PENDING | Ensure \`Connect\`/\`Verify\` versus \`ConnectReconciled\`/\`Reconcile\` scope to **owned** Streams/Consumers; never auto-manage publisher destinations. Disposable A/B bidirectional Subject1/Subject2 -> X/Y, independent message histories, unchanged existing broker state, focused failure/regression tests. |
 
 Do NATSKit first, record actual tests (focused then \`task verify:strict\` once). CRA later removes unverified \`cancel_external_stream\` and adopts generic API. **No live broker change, no implicit tag/release or GitHub Actions.**
 
