@@ -19,3 +19,7 @@ Changes to these decisions require an explicit design rationale, tests, and revi
 ## 2026-10-18 — Release decision
 
 The owner approved publishing exactly `v0.1.0` after the NATSKit isolated strict gate passed. This does **not** authorize unrelated source changes, CRA main merge, customer-data access, forced tags, unsafe broker migrations or additional version releases. The available GitHub connection cannot perform create-tag/create-release, so final publication requires a separate operator action and subsequent remote verification.
+
+## Release completion (2026-10-18)
+
+The official `v0.1.0` tag and GitHub Release have now been verified, with the annotated tag targeting commit `0e27d162f0c43225e366da66d340b3f767d667d8`. Historical statements about a pending publication are superseded. Tag immutability is mandatory; no automatic tag move, API changes or other version is approved.

@@ -34,4 +34,4 @@ See [TASKS.md](TASKS.md) for gates and their evidence requirements. Neither comm
 - Default `Connect` is **read-only topology verification**. Only explicit `ConnectReconciled` can create missing resources or add Stream subjects. Never silently change that contract.
 - Unsafe Stream policy/subject removal or Durable filter/policy drift must **fail closed**. No delete, purge, forced resubscription, replay, volume reset or guessed cursor migration.
 - Successful PubAck is not a business commit; processing remains at-least-once, and the application owns idempotency and DB commit-before-ACK.
-- Only the first `v0.1.0` release has explicit owner approval (2026-10-18); its Tag/GitHub Release publication is still pending. No additional tag, unrelated merge, dependency upgrade, CI change or new feature is authorized. Prefer one final test batch over repeated partial gates.
+- The first `v0.1.0` release is **published and verified** (2026-10-18). Its annotated tag points to the intended source commit. No additional tags, unrelated merge, dependency upgrade, CI change or new feature is authorized. Prefer one final test batch over repeated partial gates.

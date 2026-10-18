@@ -29,3 +29,8 @@
 - GitHub preflight found zero existing NATSKit tags and Releases; checked the exact `v0.1.0` ref and release endpoint, both absent.
 - Prepared `docs/releases/v0.1.0.md` and an explicit owner/operator release checklist. GitHub connector currently exposes commits but no tag/release creation: NK-05 remains pending publication. The exact release-source commit is the final main HEAD containing these docs, to be verified before tagging.
 - No Go, broker configuration, runtime secret, CI workflow or dependency changes made; no production/live environment access, CRA merge or unapproved tag.
+
+## 2026-10-18 — NK-05 official release confirmed
+
+- Owner confirmed `v0.1.0` publication. Remote GitHub tag and Release independently verified; annotated tag SHA `d232039c734e626b854669b62e82260c6fdd6a4d` targets `0e27d162f0c43225e366da66d340b3f767d667d8`, published Release is not draft/prerelease.
+- Marked `NK-05` DONE; `NK-06` and `NK-07` remain BLOCKED/DEFERRED. No Go source, tag, CI workflow, external NATS or application deployment modified.

@@ -6,11 +6,13 @@ Requires Go 1.26 or newer. See [ORIGIN.md](ORIGIN.md) for extraction provenance
 and [the standalone engineering handoff](.codex/START_HERE.md) for current
 architecture, decisions, status, task register and next-chat instructions.
 
-Consumers should pin an immutable commit until a semantic release is approved:
+The first release is [v0.1.0](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0), an annotated tag pinned to the verified library code:
 
 ```sh
-go get github.com/majiddarvishan/natskit@<commit-sha>
+go get github.com/majiddarvishan/natskit@v0.1.0
 ```
+
+For experimental post-release changes, pin a separately reviewed immutable commit.
 
 ## Config model
 
@@ -174,4 +176,4 @@ lossless cursor handoff exists.
 
 ## Initial release
 
-The owner approved the first pre-1.0 version, **v0.1.0**, on 2026-10-18. Read the [prepared release notes](docs/releases/v0.1.0.md) and [current publication status](.codex/TASKS.md). A documentation commit does **not** mean a Git Tag or Release already exists; wait for the actual v0.1.0 tag before using `go get ...@v0.1.0`.
+**v0.1.0 is officially published**, with [release notes](docs/releases/v0.1.0.md) and [GitHub Release](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0). The annotated tag points to the verified commit `0e27d162f0c43225e366da66d340b3f767d667d8`.

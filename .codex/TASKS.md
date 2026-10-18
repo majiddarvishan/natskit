@@ -13,26 +13,13 @@ This is the **only current NATSKit backlog**. Do not import another application'
 - Owner executed `task verify:strict` with `nats-server: v2.14.6` available on PATH: `fmt:check`, `mod:check` (including `go mod tidy` and clean diff of `go.mod`/`go.sum`), `go:test` (`ok`, 15.546s), `go:race` (`ok`, 14.189s), and `go:vet` (no errors). The provided output ends normally at `go vet` with no failure.
 - The missing-broker precondition is satisfied and the source's disposable-broker tests can run. The provided non-verbose log does **not** enumerate individual test names/skips or the workstation's `go version`; do not invent these details or claim broader production fault coverage. Do not rerun the gate for documentation-only commits.
 
-## IN PROGRESS — NK-05: owner-approved v0.1.0 release
+## DONE — NK-05: official v0.1.0 release (GitHub verified 2026-10-18)
 
-- Owner explicitly authorized publishing **v0.1.0** on 2026-10-18, after the independent strict gate passed.
-- Preflight on GitHub: no existing tags or GitHub Releases, including no v0.1.0 collision.
-- Release notes: [docs/releases/v0.1.0.md](../docs/releases/v0.1.0.md). **Not yet published**: the connected GitHub actions in this chat cannot create a tag or GitHub Release. The prepared notes/commits alone are not a release.
-- Finalization by a trusted local operator, in the standalone NATSKit repository (not CRA): verify clean local main matches the prepared release source commit, create exactly one annotated v0.1.0 tag on that commit, push ONLY that tag, then publish a non-draft GitHub Release using the prepared notes. Confirm the public tag and release links before marking NK-05 DONE.
-- Exact commands after the release-preparation commit has been synced:
-
-```sh
-git fetch origin main --tags
-git switch main
-git pull --ff-only
-git status --short                     # must be empty
-git rev-parse HEAD                     # must equal the release-source SHA given in the handoff
-git tag -a v0.1.0 HEAD -m "NATSKit v0.1.0"
-git push origin refs/tags/v0.1.0
-gh release create v0.1.0 --verify-tag --title "NATSKit v0.1.0" --notes-file docs/releases/v0.1.0.md
-```
-
-If GitHub CLI (`gh`) is unavailable, use the GitHub Releases web page after pushing the tag. Never retag or force-push a published version. Review existing GitHub Actions triggers before pushing a tag; the operator owns CI/billing impact. No CRA merge or live-data action is included.
+- Owner published the initial official release: [NATSKit v0.1.0](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0).
+- **Annotated tag:** `refs/tags/v0.1.0` -> tag object `d232039c734e626b854669b62e82260c6fdd6a4d` -> commit **`0e27d162f0c43225e366da66d340b3f767d667d8`**. GitHub independently confirmed the exact immutable commit.
+- **GitHub Release:** published at `2026-10-18T16:22:55Z`; `draft=false`, `prerelease=false`; [release notes](../docs/releases/v0.1.0.md) match its published content.
+- Previous tag publication instructions are complete/historical. Do not re-create, move, or force-push this tag. Future versions require a separate explicit owner decision.
+- Documentation-only changes made after the tagged commit are **not** part of the `v0.1.0` artifact. Library Go source/API and CRA pinned module are unchanged.
 
 ## BLOCKED — not implementable safely without a cutover contract
 

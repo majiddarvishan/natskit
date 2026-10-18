@@ -10,7 +10,7 @@
 - Last code fix (`25f0db6b10c5`) corrected passing `ResolvedConsumer` instead of `want.Config` to `consumerPolicySummary`.
 - The earlier `consumerPolicySummary` compilation regression was fixed in `25f0db6b10c5`. On 2026-10-18 the owner **supplied the independent, post-fix `task verify:strict` all-pass output** with `nats-server: v2.14.6`. See the newest quality-gate evidence below.
 - Existing `task verify` can silently skip disposable integration tests if the external `nats-server` binary is absent. A separate strict preflight gate is added for independent acceptance.
-- No NATSKit release/tag or production migration has been approved. Existing GitHub workflow was neither enabled nor modified by this documentation effort.
+- Historical baseline: no NATSKit release/tag existed at initial audit. **Superseded:** v0.1.0 is now published and verified; no production migration was approved. Existing GitHub workflow was neither enabled nor modified by this documentation effort.
 
 ## Current gate status
 
@@ -41,3 +41,9 @@
 - Release notes and exact finalization checklist prepared. **The tag and GitHub Release do not exist yet.** This environment's connected GitHub operations can commit source but expose no create-tag or create-release command. NK-05 stays IN PROGRESS until the public tag and release are verified.
 - The owner-reported `task verify:strict` PASS on 2026-10-18 continues to apply to unchanged Go code. All release-preparation changes are documentation-only; no re-run is necessary solely for those changes.
 - Final tag must point to the last release-preparation commit on main, the SHA verified by a future `git rev-parse HEAD` and GitHub branch lookup. No additional features, runtime broker work or dependency changes are authorized.
+
+## 2026-10-18 — Official v0.1.0 publication verified (NK-05 DONE)
+
+- Owner confirmed completion of the release operation. Verified directly from GitHub: [release `v0.1.0`](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0) is **published**, not draft and not prerelease; published at `2026-10-18T16:22:55Z`.
+- `refs/tags/v0.1.0` points to annotated tag object `d232039c734e626b854669b62e82260c6fdd6a4d`, which points to exact commit `0e27d162f0c43225e366da66d340b3f767d667d8`. The tag exists; prior historical claims of PENDING are superseded.
+- No changes to the verified Go library source were required for publication. Later documentation updates to main are not included in this tag. `NK-04` and `NK-05` are DONE; `NK-06` remains BLOCKED, `NK-07` DEFERRED.
