@@ -22,3 +22,10 @@
 - Formatting, `go mod tidy`, `go.mod/go.sum` diff, `go test -count=1 ./...` (15.546s), race (14.189s) and `go vet ./...` all succeeded. No error was reported.
 - The supplied output did not include `go version` or verbose per-test skip inventory; record those as unknown, not guessed. All tests run against local disposable broker resources in this repo; no external broker endpoint is configured by the quality gate.
 - NK-04 marked DONE based on owner-provided results. NK-05 release/version choice remains OPEN, NK-06 remains BLOCKED; NK-07 deferred. This commit changes only docs and does not require retesting.
+
+## 2026-10-18 — first release preparation
+
+- Owner stated CRA Compose is connected to real data, that local runtime data/config must never enter Git, that `v0.1.0` publication is approved and that CRA branch merge must await a separate explicit request.
+- GitHub preflight found zero existing NATSKit tags and Releases; checked the exact `v0.1.0` ref and release endpoint, both absent.
+- Prepared `docs/releases/v0.1.0.md` and an explicit owner/operator release checklist. GitHub connector currently exposes commits but no tag/release creation: NK-05 remains pending publication. The exact release-source commit is the final main HEAD containing these docs, to be verified before tagging.
+- No Go, broker configuration, runtime secret, CI workflow or dependency changes made; no production/live environment access, CRA merge or unapproved tag.

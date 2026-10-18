@@ -10,8 +10,12 @@
 | NK-D06 | Do not auto-delete/recreate Streams or Consumers, purge data, modify broker storage or replay poison records. | Such actions require a separate approved recovery/cutover design. |
 | NK-D07 | Pull Durable + explicit ACK; Quarantine PubAck before source ACK; at-least-once semantics. | Application commits and idempotency cannot be provided by the transport library. |
 | NK-D08 | Real integration tests must use disposable localhost servers and temp directories. | No customer broker, production volume, or external database required. |
-| NK-D09 | Library consumers pin commits pending explicit semver review. | No tag/release by default; preserve API compatibility. |
+| NK-D09 | Library consumers pin commits pending explicit semver review. | First `v0.1.0` is now owner-approved; tag/release creation and future versions still require explicit verified handling. |
 | NK-D10 | No automatic pull subscription rebind/replay guarantee after all network/cluster failure classes. | Recovery outside tested paths remains a documented limitation, not an implied guarantee. |
 | NK-D11 | `task verify` remains a fast standard source gate; `task verify:strict` requires a locally installed `nats-server`. | Distinguish missing-tool test skips from verified disposable-broker coverage without changing existing workflow. |
 
 Changes to these decisions require an explicit design rationale, tests, and review; do not infer permission from a request to tidy documentation.
+
+## 2026-10-18 — Release decision
+
+The owner approved publishing exactly `v0.1.0` after the NATSKit isolated strict gate passed. This does **not** authorize unrelated source changes, CRA main merge, customer-data access, forced tags, unsafe broker migrations or additional version releases. The available GitHub connection cannot perform create-tag/create-release, so final publication requires a separate operator action and subsequent remote verification.

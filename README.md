@@ -171,3 +171,7 @@ credentials, ACLs and cutover policy. There is no new configuration switch.
 Automated subject replacement and durable-filter migration **are not
 implemented** until a coordinated producer/consumer fence and a verifiable
 lossless cursor handoff exists.
+
+## Initial release
+
+The owner approved the first pre-1.0 version, **v0.1.0**, on 2026-10-18. Read the [prepared release notes](docs/releases/v0.1.0.md) and [current publication status](.codex/TASKS.md). A documentation commit does **not** mean a Git Tag or Release already exists; wait for the actual v0.1.0 tag before using `go get ...@v0.1.0`.

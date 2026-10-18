@@ -34,3 +34,10 @@
 - Go toolchain version: **not in supplied log** (module declares Go 1.26.0).
 - Individual skip inventory: **not in non-verbose log**. The precondition rules out missing `nats-server` as a reason for the suite skipping its disposable-broker tests, but it is not a complete audit of every `t.Skip` condition.
 - This is **not** a production deployment, broker migration, customer acceptance or explicit release approval.
+
+## 2026-10-18 — Initial v0.1.0 release approved; awaiting remote Tag/Release
+
+- User authorized first NATSKit version `v0.1.0`. GitHub preflight: zero tags and releases, and no `v0.1.0` ref or GitHub Release found.
+- Release notes and exact finalization checklist prepared. **The tag and GitHub Release do not exist yet.** This environment's connected GitHub operations can commit source but expose no create-tag or create-release command. NK-05 stays IN PROGRESS until the public tag and release are verified.
+- The owner-reported `task verify:strict` PASS on 2026-10-18 continues to apply to unchanged Go code. All release-preparation changes are documentation-only; no re-run is necessary solely for those changes.
+- Final tag must point to the last release-preparation commit on main, the SHA verified by a future `git rev-parse HEAD` and GitHub branch lookup. No additional features, runtime broker work or dependency changes are authorized.

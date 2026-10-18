@@ -24,7 +24,7 @@
 
 ## Compatibility and release policy
 
-- No semantic release/tag has been authorized. Consumers should pin immutable commits until a separate release review.
+- The owner explicitly approved the initial `v0.1.0` release on 2026-10-18. Tag/Release publication is still pending; consumers should continue pinning immutable commits until the tag actually exists.
 - Optional physical Stream/Durable names preserve *existing* names; they do not authorize migration.
 - Documentation and Taskfile changes on `main` do not require an unrelated downstream application to change its pinned module version. Pin only after code/API changes warrant it.
 - The library must be independently testable with disposable loopback `nats-server`; never require an external application's deployment or private credentials.
