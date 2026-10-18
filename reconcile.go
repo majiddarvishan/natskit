@@ -42,9 +42,9 @@ func (e *ReconcileBlocked) Error() string {
 }
 
 type plannedStream struct {
-	want    nats.StreamConfig
-	create  bool
-	expand  bool
+	want   nats.StreamConfig
+	create bool
+	expand bool
 }
 type plannedConsumer struct {
 	want   ResolvedConsumer

@@ -20,7 +20,7 @@ type Client struct {
 	Topology       Resolved
 	Reconciliation ReconcileReport
 	Conn           *nats.Conn
-	JS       nats.JetStreamContext
+	JS             nats.JetStreamContext
 }
 
 // Connect is read-only and preserves the existing verify-only contract.
