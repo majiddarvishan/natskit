@@ -16,7 +16,8 @@ Connect(ctx, cfg)             ConnectReconciled(ctx, cfg)
 read-only Verify              complete broker preflight
      |                                   |
 bind existing resources       create missing Streams/Consumers
-                                 or add Stream subjects only
+                                 or adjust Stream subjects
+                                (replace policy is opt-in)
                                          |
                                   read-only final Verify
                                          |
@@ -28,10 +29,10 @@ The `jetstream.provisioning` field does **not** activate automatic provisioning.
 ## Managed reconciliation: safety contract
 
 1. Inspect **all** desired Streams and Consumers before any mutation.
-2. Refuse incompatible policy changes and subject removals/replacements with `ReconcileBlocked` (resource, current/desired policy summary, reason, risk, suggested operator action and stable code).
-3. Only create missing resources or extend existing Stream subject sets. Never change an existing Durable filter, ACK policy or cursor; never delete/purge resources or broker storage.
-4. Verify the full topology after operations. Concurrent creators/expanders may race; reinspection must confirm compatibility.
-5. JetStream has no cross-resource transaction: a failed run can leave **non-destructive partial additions**. Retry/converge only under the same safety rules.
+2. Refuse incompatible Stream/Consumer policy changes with `ReconcileBlocked`. Refuse subject removals/replacements in default `additive`; permit only with explicitly selected `replace` and **positive existing MaxAge** for normal old-message expiration.
+3. Only create missing resources and extend Stream subjects by default; with `replace`, update **only** existing Stream subject lists. Never change an existing Durable filter, ACK policy or cursor; never delete/purge resources or broker storage.
+4. Verify full topology after operations. Reinspect resources immediately before writing; subject replacement additionally rejects any intervening change to the observed Stream capture set.
+5. JetStream has no cross-resource transaction: a failed run may leave some subject-list updates completed. The customer explicitly owns external producer/receiver cutover when choosing `replace`; no exactly-once or lossless old-route continuation is implied.
 
 Relevant files: `topology.go`, `provision.go`, `reconcile.go`, `broker.go`, `reconcile_test.go`, `topology_test.go`.
 

@@ -31,7 +31,7 @@ See [TASKS.md](TASKS.md) for gates and their evidence requirements. Neither comm
 ## Hard constraints
 
 - Generic Go module only: no app repositories, application schemas, database models, business subjects, Protobuf contracts or product-specific metrics/loggers.
-- Default `Connect` is **read-only topology verification**. Only explicit `ConnectReconciled` can create missing resources or add Stream subjects. Never silently change that contract.
-- Unsafe Stream policy/subject removal or Durable filter/policy drift must **fail closed**. No delete, purge, forced resubscription, replay, volume reset or guessed cursor migration.
+- Default `Connect` is **read-only topology verification**. Only explicit `ConnectReconciled` may create missing resources or modify Stream Subject capture. The `additive` default never removes old capture; explicit `subject_update_policy=replace` allows subject-list replacement with a positive existing MaxAge.
+- Unsafe Stream policy drift and Durable filter/policy drift **always fail closed**. Subject removal/replacement fails closed unless the client has explicitly selected `replace`. No delete, purge, forced resubscription, replay, volume reset or guessed cursor migration.
 - Successful PubAck is not a business commit; processing remains at-least-once, and the application owns idempotency and DB commit-before-ACK.
 - The first `v0.1.0` release is **published and verified** (2026-10-18). Its annotated tag points to the intended source commit. No additional tags, unrelated merge, dependency upgrade, CI change or new feature is authorized. Prefer one final test batch over repeated partial gates.

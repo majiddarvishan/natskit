@@ -15,7 +15,7 @@
 
 - `Decode` parses a strict `Config`; `Config.Resolve` validates configuration offline.
 - `Connect(ctx, cfg)`: Core transport or read-only JetStream topology verification; no broker resource writes.
-- `ConnectReconciled(ctx, cfg)`: explicit managed startup with a complete preflight, approved additive operations, final verification and a non-sensitive `ReconcileReport`.
+- `ConnectReconciled(ctx, cfg)`: explicit managed startup with complete preflight, default additive Stream updates, or opt-in `jetstream.subject_update_policy=replace` allowing Stream subject replacement with positive MaxAge and without Purge/Delete; final verification and a non-sensitive `ReconcileReport`.
 - `ProvisionMissing(ctx, js, resolved)`: operator-oriented missing-resource creation with no update/delete.
 - `Reconcile(ctx, js, resolved)`: explicit lower-level managed broker reconciliation; structured `ReconcileBlocked` errors and stable diagnostic codes.
 - `Client.Publish` / `PublishConfirmed`: Core or JetStream publishing; any deduplication requires JetStream and a stable message ID.
