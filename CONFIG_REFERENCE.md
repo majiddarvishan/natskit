@@ -4,7 +4,7 @@
 
 Go import path: `github.com/majiddarvishan/natskit`. Source is maintained in
 its own repository and does **not** import CRA, protobuf, PostgreSQL, business
-models, product loggers or metrics. No release tag has been created.
+models, product loggers or metrics. Published v0.1.0 remains immutable.
 
 The application may wrap the library JSON in `{"nats": {...}}`, but pass
 **only** the nested `nats` JSON object to `natskit.Decode`. Unknown JSON
@@ -40,6 +40,9 @@ JetStream verification or resource creation. When enabled:
   is the precedence chain for Stream fields.
 - `defaults.consumer` -> `consumers[KEY]` is Consumer precedence;
   `defaults.worker` -> `consumers[KEY].worker` is Worker precedence.
+- Managed `streams` and `consumers` may both be empty for a publish-only client.
+  Its configured outgoing aliases need not belong to any of its managed Streams.
+  Only the receiver/operator manages the capturing broker Stream and Durable.
 - `streams[KEY].subjects` and `consumers[KEY].filter` are arrays of subject
   **aliases**, not arbitrary literal subjects. Consumer filters must be fully
   covered by their Stream.
@@ -69,9 +72,16 @@ JetStream verification or resource creation. When enabled:
    Stream/Consumer resources; it refuses drift.
 3. Application `natskit.Connect(ctx,cfg)` verifies existing topology,
    **never creates it**, then returns a Client.
-4. Publish with `client.Publish(ctx, alias, payload, stableMessageID)`.
-   A PubAck confirms storage only. In Core mode no broker deduplication
-   is available.
+4. Publish with `client.Publish(ctx, alias, payload, stableMessageID)` or
+   `client.PublishConfirmed(ctx, alias, payload, stableMessageID)` for the
+   actual broker receipt. Publishers do not need to declare the capturing
+   Stream. `PublishConfirmedWithOptions(ctx, alias, payload, stableMessageID,
+   natskit.PublishOptions{ExpectedStream: "EXISTING_STREAM"})` optionally
+   asserts the broker's Stream using `ExpectStream`. An unmatched expectation,
+   absent capture, or JetStream publish failure is an error, never a Core
+   fallback. Without an expected Stream, any genuine broker PubAck is valid.
+   A PubAck confirms storage only, not business completion. Core NATS has
+   neither durable PubAck nor server-side deduplication.
 5. Start pull Workers with `client.StartWorker(ctx, consumerKey, handler)`.
    Return nil **only** after all application side effects are durably
    committed. Stop workers and close the Client cleanly.
