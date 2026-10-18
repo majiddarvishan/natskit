@@ -168,8 +168,7 @@ func (c *Client) PublishConfirmedWithOptions(ctx context.Context, alias string, 
 		if options.ExpectedStream != "" {
 			return PublishReceipt{}, errors.New("expected JetStream Stream requires JetStream publishing")
 		}
-		if messageID != "" { /* Core NATS does not implement deduplication. */
-		}
+		// Core NATS has neither a durable PubAck nor server-side Msg-Id deduplication.
 		if err := c.Conn.Publish(subject, payload); err != nil {
 			return PublishReceipt{}, err
 		}
