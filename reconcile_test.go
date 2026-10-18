@@ -187,3 +187,45 @@ func TestPolicySummariesExplainActualSettings(t *testing.T) {
 		t.Fatalf("consumer policy summary omitted actual values: %s", consumer)
 	}
 }
+
+func TestDisposableReconcileBlocksUnmanagedRetentionCap(t *testing.T) {
+	url := startDisposableServer(t)
+	cfg := sample(t)
+	cfg.Connection.URLs = []string{url}
+	topology, err := cfg.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nc, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	js, err := nc.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	if _, err := Reconcile(ctx, js, topology); err != nil {
+		t.Fatal(err)
+	}
+	stream := topology.Streams["COMMANDS"]
+	info, err := js.StreamInfo(stream.Name, nats.Context(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := info.Config
+	changed.MaxMsgs = 2
+	if _, err := js.UpdateStream(&changed, nats.Context(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Reconcile(ctx, js, topology)
+	if report != (ReconcileReport{}) || ReconcileErrorCode(err) != "JS_STREAM_POLICY_DRIFT" || !IsUnsafeDrift(err) {
+		t.Fatalf("hidden retention cap must stop startup before changes: report=%+v err=%v", report, err)
+	}
+	after, err := js.StreamInfo(stream.Name, nats.Context(ctx))
+	if err != nil || after.Config.MaxMsgs != 2 {
+		t.Fatalf("refused reconciliation unexpectedly changed existing policy: %v", err)
+	}
+}

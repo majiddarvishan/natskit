@@ -230,13 +230,13 @@ func subjectsContained(current, desired []string) bool {
 }
 
 func streamPolicySummary(c nats.StreamConfig) string {
-	return fmt.Sprintf("storage=%v retention=%v discard=%v replicas=%d max_bytes=%d max_age=%s max_msg_size=%d duplicate_window=%s no_ack=%t discard_new_per_subject=%t",
-		c.Storage, c.Retention, c.Discard, c.Replicas, c.MaxBytes, c.MaxAge, c.MaxMsgSize, c.Duplicates, c.NoAck, c.DiscardNewPerSubject)
+	return fmt.Sprintf("storage=%v retention=%v discard=%v replicas=%d max_msgs=%d max_msgs_per_subject=%d max_bytes=%d max_age=%s max_msg_size=%d duplicate_window=%s no_ack=%t discard_new_per_subject=%t sealed=%t allow_rollup=%t subject_transform=%t republish=%t mirror=%t sources=%d allow_msg_ttl=%t subject_delete_marker_ttl=%s",
+		c.Storage, c.Retention, c.Discard, c.Replicas, c.MaxMsgs, c.MaxMsgsPerSubject, c.MaxBytes, c.MaxAge, c.MaxMsgSize, c.Duplicates, c.NoAck, c.DiscardNewPerSubject, c.Sealed, c.AllowRollup, c.SubjectTransform != nil, c.RePublish != nil, c.Mirror != nil, len(c.Sources), c.AllowMsgTTL, c.SubjectDeleteMarkerTTL)
 }
 
 func consumerPolicySummary(c nats.ConsumerConfig) string {
-	return fmt.Sprintf("ack_policy=%v deliver_policy=%v ack_wait=%s max_deliver=%d max_ack_pending=%d backoff=%v replay_policy=%v deliver_subject=%q deliver_group=%q headers_only=%t",
-		c.AckPolicy, c.DeliverPolicy, c.AckWait, c.MaxDeliver, c.MaxAckPending, c.BackOff, c.ReplayPolicy, c.DeliverSubject, c.DeliverGroup, c.HeadersOnly)
+	return fmt.Sprintf("ack_policy=%v deliver_policy=%v ack_wait=%s max_deliver=%d max_ack_pending=%d backoff=%v replay_policy=%v deliver_subject=%q deliver_group=%q headers_only=%t inactive_threshold=%s memory_storage=%t rate_limit=%d",
+		c.AckPolicy, c.DeliverPolicy, c.AckWait, c.MaxDeliver, c.MaxAckPending, c.BackOff, c.ReplayPolicy, c.DeliverSubject, c.DeliverGroup, c.HeadersOnly, c.InactiveThreshold, c.MemoryStorage, c.RateLimit)
 }
 
 // ReconcileErrorCode extracts the stable failure classification for application

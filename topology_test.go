@@ -261,6 +261,21 @@ func TestVerifyDetectsUnsafeUntrackedStreamAndConsumerDrift(t *testing.T) {
 		t.Fatal("stream NoAck drift must be rejected")
 	}
 	changedStream = stream
+	changedStream.MaxMsgs = 1
+	if sameStream(changedStream, stream) {
+		t.Fatal("stream MaxMsgs drift must be rejected")
+	}
+	changedStream = stream
+	changedStream.MaxMsgsPerSubject = 1
+	if sameStream(changedStream, stream) {
+		t.Fatal("stream MaxMsgsPerSubject drift must be rejected")
+	}
+	changedStream = stream
+	changedStream.SubjectTransform = &nats.SubjectTransformConfig{Source: "v1.*", Destination: "other.*"}
+	if sameStream(changedStream, stream) {
+		t.Fatal("stream subject transform drift must be rejected")
+	}
+	changedStream = stream
 	changedStream.DiscardNewPerSubject = true
 	if sameStream(changedStream, stream) {
 		t.Fatal("per-subject discard drift must be rejected")
@@ -275,6 +290,11 @@ func TestVerifyDetectsUnsafeUntrackedStreamAndConsumerDrift(t *testing.T) {
 	changedConsumer.DeliverSubject = "unexpected.push.subject"
 	if sameConsumer(changedConsumer, consumer) {
 		t.Fatal("consumer unexpectedly switched to push delivery")
+	}
+	changedConsumer = consumer
+	changedConsumer.InactiveThreshold = time.Hour
+	if sameConsumer(changedConsumer, consumer) {
+		t.Fatal("durable inactivity expiration drift must be rejected")
 	}
 	changedConsumer = consumer
 	changedConsumer.HeadersOnly = true

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 
@@ -112,7 +113,15 @@ func sameStream(a, b nats.StreamConfig) bool {
 	return a.Name == b.Name && sortedEqual(a.Subjects, b.Subjects) && a.Storage == b.Storage &&
 		a.Retention == b.Retention && a.Discard == b.Discard && a.MaxAge == b.MaxAge &&
 		a.Duplicates == b.Duplicates && a.MaxBytes == b.MaxBytes && a.MaxMsgSize == b.MaxMsgSize && a.Replicas == b.Replicas &&
-		a.NoAck == b.NoAck && a.DiscardNewPerSubject == b.DiscardNewPerSubject
+		a.NoAck == b.NoAck && a.DiscardNewPerSubject == b.DiscardNewPerSubject &&
+		unlimitedLimit(a.MaxMsgs) == unlimitedLimit(b.MaxMsgs) &&
+		unlimitedLimit(a.MaxMsgsPerSubject) == unlimitedLimit(b.MaxMsgsPerSubject) &&
+		a.Sealed == b.Sealed && a.AllowRollup == b.AllowRollup &&
+		a.AllowMsgTTL == b.AllowMsgTTL && a.SubjectDeleteMarkerTTL == b.SubjectDeleteMarkerTTL &&
+		reflect.DeepEqual(a.SubjectTransform, b.SubjectTransform) &&
+		reflect.DeepEqual(a.RePublish, b.RePublish) &&
+		reflect.DeepEqual(a.Mirror, b.Mirror) &&
+		reflect.DeepEqual(a.Sources, b.Sources)
 }
 
 func sameConsumer(a, b nats.ConsumerConfig) bool {
@@ -120,5 +129,16 @@ func sameConsumer(a, b nats.ConsumerConfig) bool {
 		a.AckPolicy == b.AckPolicy && a.DeliverPolicy == b.DeliverPolicy && a.AckWait == b.AckWait &&
 		a.MaxDeliver == b.MaxDeliver && a.MaxAckPending == b.MaxAckPending && slices.Equal(a.BackOff, b.BackOff) &&
 		a.ReplayPolicy == b.ReplayPolicy && a.DeliverSubject == b.DeliverSubject &&
-		a.DeliverGroup == b.DeliverGroup && a.HeadersOnly == b.HeadersOnly
+		a.DeliverGroup == b.DeliverGroup && a.HeadersOnly == b.HeadersOnly &&
+		a.InactiveThreshold == b.InactiveThreshold && a.MemoryStorage == b.MemoryStorage &&
+		a.RateLimit == b.RateLimit
+}
+
+// unlimitedLimit normalizes the Go client's unset limit (0) to the broker's
+// unlimited default (-1). Any positive retention cap is material drift.
+func unlimitedLimit(value int64) int64 {
+	if value == 0 {
+		return -1
+	}
+	return value
 }
