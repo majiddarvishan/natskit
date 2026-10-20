@@ -115,3 +115,17 @@ func TestQuarantineBuilderPanicIsNotAnAcknowledgment(t *testing.T) {
 		t.Fatalf("panic silently allowed quarantine record: record=%v err=%v", record, err)
 	}
 }
+
+
+func TestDeliveryEventIncludesActualPayloadBytes(t *testing.T) {
+	var observed DeliveryEvent
+	options := WorkerOptions{Observe: func(event DeliveryEvent) { observed = event }}
+	payload := []byte(`{"type":"response","payload":{"error_code":1025}}`)
+	options.emit("received", &nats.Msg{Subject: "telecom.requester.outbound", Data: payload}, nil)
+	if observed.Action != "received" || observed.Subject != "telecom.requester.outbound" {
+		t.Fatalf("unexpected delivery event metadata: %+v", observed)
+	}
+	if observed.PayloadBytes != len(payload) {
+		t.Fatalf("payload bytes = %d, want actual message size %d", observed.PayloadBytes, len(payload))
+	}
+}

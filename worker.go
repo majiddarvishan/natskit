@@ -61,6 +61,7 @@ func (opts WorkerOptions) emit(action string, msg *nats.Msg, err error) {
 	e := DeliveryEvent{Action: action, Err: err}
 	if msg != nil {
 		e.Subject = msg.Subject
+		e.PayloadBytes = len(msg.Data)
 		if meta, metaErr := msg.Metadata(); metaErr == nil {
 			e.Stream = meta.Stream
 			e.Sequence = meta.Sequence.Stream
