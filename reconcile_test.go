@@ -345,3 +345,150 @@ func TestDisposableSubjectReplacementPreflightStillBlocksConsumerDrift(t *testin
 		t.Fatalf("preflight must not change Stream on Consumer drift: info=%v err=%v", info, err)
 	}
 }
+
+
+// externalConsumerFixture configures one durable worker against a stream owned
+// by a separate application. Only that consumer is external; all other
+// resources remain managed by this service.
+func externalConsumerFixture(t *testing.T, url, subject string) Config {
+	t.Helper()
+	cfg := sample(t)
+	cfg.InstanceID = "external-stream-test"
+	cfg.Connection.URLs = []string{url}
+	cfg.Subjects["cancel_results"] = subject
+	results := cfg.JetStream.Streams["RESULTS"]
+	results.Subjects = []string{"results"}
+	cfg.JetStream.Streams["RESULTS"] = results
+	consumer := cfg.JetStream.Consumers["CANCEL_RESULTS_WORKER"]
+	consumer.Stream = "MAP_ENVELOPE_RESPONSES"
+	consumer.ExternalStream = true
+	consumer.Filter = []string{"cancel_results"}
+	cfg.JetStream.Consumers["CANCEL_RESULTS_WORKER"] = consumer
+	return cfg
+}
+
+func TestDisposableExternalStreamConsumerPreservesStreamAndReceivesRetainedMessage(t *testing.T) {
+	url := startDisposableServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	js, err := conn.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const subject = "telecom.requester.outbound"
+	before, err := js.AddStream(&nats.StreamConfig{
+		Name: "MAP_ENVELOPE_RESPONSES", Subjects: []string{subject, "telecom.other.responses"},
+		Storage: nats.MemoryStorage, MaxAge: time.Hour,
+	}, nats.Context(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := js.Publish(subject, []byte("already-published-response"), nats.Context(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	cfg := externalConsumerFixture(t, url, subject)
+	client, err := ConnectReconciled(ctx, cfg)
+	if err != nil {
+		t.Fatalf("connect with external result Stream: %v", err)
+	}
+	defer client.Close()
+	if client.Reconciliation.CreatedStreams != len(cfg.JetStream.Streams) {
+		t.Fatalf("external Stream was counted as managed: %+v", client.Reconciliation)
+	}
+	received := make(chan string, 1)
+	worker, err := client.StartWorkerWithOptions(ctx, "CANCEL_RESULTS_WORKER",
+		func(_ context.Context, msg *nats.Msg) error {
+			received <- string(msg.Data)
+			return nil
+		}, WorkerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Stop()
+	select {
+	case got := <-received:
+		if got != "already-published-response" {
+			t.Fatalf("received unexpected payload %q", got)
+		}
+	case <-ctx.Done():
+		t.Fatalf("external durable did not replay the retained response: %v", ctx.Err())
+	}
+	var after *nats.StreamInfo
+	for {
+		after, err = js.StreamInfo("MAP_ENVELOPE_RESPONSES", nats.Context(ctx))
+		if err != nil {
+			t.Fatal(err)
+		}
+		consumerInfo, consumerErr := js.ConsumerInfo("MAP_ENVELOPE_RESPONSES",
+			client.Topology.Consumers["CANCEL_RESULTS_WORKER"].Config.Durable, nats.Context(ctx))
+		if consumerErr != nil {
+			t.Fatal(consumerErr)
+		}
+		if consumerInfo.AckFloor.Consumer >= 1 && consumerInfo.NumAckPending == 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("external response was handled but not ACKed: %v", ctx.Err())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if !sameStream(before.Config, after.Config) || after.State.Msgs != 1 {
+		t.Fatalf("external Stream was changed: before=%+v after=%+v", before.Config, after.Config)
+	}
+}
+
+func TestExternalStreamMustExistBeforeManagedProvisioning(t *testing.T) {
+	url := startDisposableServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	js, err := conn.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := externalConsumerFixture(t, url, "telecom.requester.outbound")
+	if _, err := ConnectReconciled(ctx, cfg); err == nil {
+		t.Fatal("missing external Stream unexpectedly accepted")
+	}
+	if _, err := js.StreamInfo("SERVICE_A_COMMANDS", nats.Context(ctx)); !errors.Is(err, nats.ErrStreamNotFound) {
+		t.Fatalf("managed resources were mutated before external preflight: %v", err)
+	}
+}
+
+func TestExternalStreamOverlapBlocksBeforeManagedProvisioning(t *testing.T) {
+	url := startDisposableServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, err := nats.Connect(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	js, err := conn.JetStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := js.AddStream(&nats.StreamConfig{
+		Name: "MAP_ENVELOPE_RESPONSES", Subjects: []string{"v1.>"},
+		Storage: nats.MemoryStorage, MaxAge: time.Hour,
+	}, nats.Context(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	cfg := externalConsumerFixture(t, url, "v1.cancel.results")
+	if _, err := ConnectReconciled(ctx, cfg); err == nil || !strings.Contains(err.Error(), "overlaps managed Stream") {
+		t.Fatalf("overlapping external capture should fail closed: %v", err)
+	}
+	if _, err := js.StreamInfo("SERVICE_A_COMMANDS", nats.Context(ctx)); !errors.Is(err, nats.ErrStreamNotFound) {
+		t.Fatalf("managed resources were mutated before overlap preflight: %v", err)
+	}
+}

@@ -14,6 +14,9 @@ import (
 // Verify is strictly read-only. Application startup must fail closed if an
 // expected resource is absent or has drifted from its declarative contract.
 func Verify(ctx context.Context, js nats.JetStreamContext, topology Resolved) error {
+	if err := validateExternalConsumerStreams(ctx, js, topology); err != nil {
+		return err
+	}
 	for _, key := range sortedStreamKeys(topology.Streams) {
 		want := topology.Streams[key]
 		info, err := js.StreamInfo(want.Name, nats.Context(ctx))
@@ -41,6 +44,9 @@ func Verify(ctx context.Context, js nats.JetStreamContext, topology Resolved) er
 // It never updates or deletes existing resources. It preflights all resources
 // for drift before creating anything, then verifies the complete topology.
 func ProvisionMissing(ctx context.Context, js nats.JetStreamContext, topology Resolved) error {
+	if err := validateExternalConsumerStreams(ctx, js, topology); err != nil {
+		return err
+	}
 	var newStreams []nats.StreamConfig
 	missingStreams := make(map[string]bool)
 	for _, key := range sortedStreamKeys(topology.Streams) {
@@ -141,4 +147,49 @@ func unlimitedLimit(value int64) int64 {
 		return -1
 	}
 	return value
+}
+
+
+// validateExternalConsumerStreams verifies receiver-owned Streams without
+// reconciling their configuration. External streams must exist, capture every
+// declared consumer filter, and remain disjoint from all managed Stream
+// captures. This preflight runs before any managed resource is mutated.
+func validateExternalConsumerStreams(ctx context.Context, js nats.JetStreamContext, topology Resolved) error {
+	infos := make(map[string]*nats.StreamInfo)
+	for _, consumer := range topology.Consumers {
+		if !consumer.ExternalStream {
+			continue
+		}
+		info := infos[consumer.Stream]
+		if info == nil {
+			var err error
+			info, err = js.StreamInfo(consumer.Stream, nats.Context(ctx))
+			if err != nil {
+				return fmt.Errorf("inspect external Stream %s: %w", consumer.Stream, err)
+			}
+			infos[consumer.Stream] = info
+		}
+		for _, filter := range consumerFilters(consumer.Config) {
+			covered := false
+			for _, captured := range info.Config.Subjects {
+				if patternCovers(captured, filter) {
+					covered = true
+					break
+				}
+			}
+			if !covered {
+				return fmt.Errorf("external Stream %s does not capture consumer filter %q", consumer.Stream, filter)
+			}
+		}
+		for _, managed := range topology.Streams {
+			for _, captured := range info.Config.Subjects {
+				for _, owned := range managed.Subjects {
+					if patternsOverlap(captured, owned) {
+						return fmt.Errorf("external Stream %s capture %q overlaps managed Stream %s capture %q", consumer.Stream, captured, managed.Name, owned)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

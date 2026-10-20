@@ -25,9 +25,10 @@ type Resolved struct {
 }
 
 type ResolvedConsumer struct {
-	Stream string // resolved physical stream name
-	Config nats.ConsumerConfig
-	Worker ResolvedWorker
+	Stream         string // resolved physical stream name
+	ExternalStream bool   // true when the Stream is receiver/operator-owned
+	Config         nats.ConsumerConfig
+	Worker         ResolvedWorker
 }
 
 type ResolvedWorker struct {
@@ -291,9 +292,24 @@ func (c Config) Resolve() (Resolved, error) {
 		if !resourceName.MatchString(key) {
 			return r, fmt.Errorf("invalid consumer name %q", key)
 		}
-		stream, ok := r.Streams[spec.Stream]
-		if !ok {
-			return r, fmt.Errorf("consumer %s references missing stream %q", key, spec.Stream)
+		stream, managed := r.Streams[spec.Stream]
+		streamName := ""
+		if spec.ExternalStream {
+			if managed {
+				return r, fmt.Errorf("consumer %s marks managed stream %q as external", key, spec.Stream)
+			}
+			if !resourceName.MatchString(spec.Stream) {
+				return r, fmt.Errorf("consumer %s has invalid external Stream name %q", key, spec.Stream)
+			}
+			if previous, exists := physicalStreams[spec.Stream]; exists {
+				return r, fmt.Errorf("consumer %s external Stream %q is also managed as %s", key, spec.Stream, previous)
+			}
+			streamName = spec.Stream
+		} else {
+			if !managed {
+				return r, fmt.Errorf("consumer %s references missing stream %q", key, spec.Stream)
+			}
+			streamName = stream.Name
 		}
 		if len(spec.Filter) == 0 {
 			return r, fmt.Errorf("consumer %s requires at least one filter", key)
@@ -304,15 +320,17 @@ func (c Config) Resolve() (Resolved, error) {
 			if !ok {
 				return r, fmt.Errorf("consumer %s unknown filter alias %q", key, ref)
 			}
-			covered := false
-			for _, p := range stream.Subjects {
-				if patternCovers(p, value) {
-					covered = true
-					break
+			if !spec.ExternalStream {
+				covered := false
+				for _, p := range stream.Subjects {
+					if patternCovers(p, value) {
+						covered = true
+						break
+					}
 				}
-			}
-			if !covered {
-				return r, fmt.Errorf("consumer %s filter %q not fully covered by stream %s", key, value, spec.Stream)
+				if !covered {
+					return r, fmt.Errorf("consumer %s filter %q not fully covered by stream %s", key, value, spec.Stream)
+				}
 			}
 			for _, prev := range filters {
 				if patternsOverlap(prev, value) {
@@ -381,7 +399,7 @@ func (c Config) Resolve() (Resolved, error) {
 		if !resourceName.MatchString(physical) {
 			return r, fmt.Errorf("consumer %s has invalid durable name %q", key, physical)
 		}
-		identity := stream.Name + "/" + physical
+		identity := streamName + "/" + physical
 		if previous, exists := physicalConsumers[identity]; exists {
 			return r, fmt.Errorf("consumers %s and %s share durable %q", previous, key, identity)
 		}
@@ -392,7 +410,7 @@ func (c Config) Resolve() (Resolved, error) {
 		} else {
 			cc.FilterSubjects = filters
 		}
-		r.Consumers[key] = ResolvedConsumer{Stream: stream.Name, Config: cc, Worker: ResolvedWorker{FetchBatch: batch, MaxConcurrency: concurrency, AckSyncTimeout: ackSync, InProgressInterval: inProgress}}
+		r.Consumers[key] = ResolvedConsumer{Stream: streamName, ExternalStream: spec.ExternalStream, Config: cc, Worker: ResolvedWorker{FetchBatch: batch, MaxConcurrency: concurrency, AckSyncTimeout: ackSync, InProgressInterval: inProgress}}
 	}
 	// Workqueue only allows one non-overlapping consumer per message.
 	for first, a := range r.Consumers {

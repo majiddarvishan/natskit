@@ -192,3 +192,14 @@ updates from additive Stream subject expansions.
 ## Initial release
 
 **v0.1.0 is officially published**, with [release notes](docs/releases/v0.1.0.md) and [GitHub Release](https://github.com/majiddarvishan/natskit/releases/tag/v0.1.0). The annotated tag points to the verified commit `0e27d162f0c43225e366da66d340b3f767d667d8`.
+
+
+## Consuming from a receiver-owned JetStream Stream
+
+A service may own a durable consumer while another application owns the
+capturing Stream. Set `external_stream: true` on that consumer and put the
+existing physical Stream name in `stream`. The external Stream must already
+exist and capture every configured filter. NATSKit verifies that relationship
+before changing any managed resources, never creates or updates the external
+Stream, and may create the service-owned durable consumer on it. Existing
+messages are delivered according to the configured consumer delivery policy.

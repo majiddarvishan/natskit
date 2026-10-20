@@ -85,9 +85,10 @@ type ConsumerSettings struct {
 }
 
 type ConsumerSpec struct {
-	Durable string   `json:"durable,omitempty"` // optional exact existing Durable name
-	Stream  string   `json:"stream"`
-	Filter  []string `json:"filter"`
+	Durable        string   `json:"durable,omitempty"` // optional exact existing Durable name
+	Stream         string   `json:"stream"`
+	ExternalStream bool     `json:"external_stream,omitempty"` // attach to an existing stream without managing it
+	Filter         []string `json:"filter"`
 	ConsumerSettings
 	Worker WorkerSettings `json:"worker,omitempty"`
 }

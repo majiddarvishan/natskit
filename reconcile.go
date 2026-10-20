@@ -76,6 +76,9 @@ func Reconcile(ctx context.Context, js nats.JetStreamContext, topology Resolved)
 	if policy != "additive" && policy != "replace" {
 		return result, errors.New("invalid subject_update_policy; expected additive or replace")
 	}
+	if err := validateExternalConsumerStreams(ctx, js, topology); err != nil {
+		return result, err
+	}
 	streams := make([]plannedStream, 0, len(topology.Streams))
 	missing := make(map[string]bool)
 	for _, key := range sortedStreamKeys(topology.Streams) {
