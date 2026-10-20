@@ -59,3 +59,20 @@ jobs:
           go-version-file: go.mod
       - name: Repeat real JetStream leader failure, rebind and quorum-loss drill
         run: go test -race -count=3 -timeout 360s -run '^TestDisposableThreeNodeJetStreamLeaderFailover$' ./...
+
+  module-consumer-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Verify the pinned standalone module as a downstream consumer
+        run: |
+          tmp="$(mktemp -d)"
+          cd "$tmp"
+          go mod init natskit-consumer-smoke
+          go mod edit -require=github.com/majiddarvishan/natskit@v0.1.1-0.20261020142148-bb078aad83a2
+          go mod download -json github.com/majiddarvishan/natskit@v0.1.1-0.20261020142148-bb078aad83a2
+          cat go.sum
