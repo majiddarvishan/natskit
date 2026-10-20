@@ -16,9 +16,16 @@ jobs:
           go-version-file: go.mod
       - run: go mod tidy
       - name: Install disposable test broker
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Build disposable test broker with its required Go toolchain
         run: |
           go install github.com/nats-io/nats-server/v2@v2.14.6
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
       - name: Verify committed Go dependency manifest
         run: git diff --exit-code -- go.mod go.sum
       - name: Check Go formatting
@@ -40,8 +47,15 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install isolated three-node NATS server CLI
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.1'
+      - name: Build isolated three-node NATS server CLI
         run: |
           go install github.com/nats-io/nats-server/v2@v2.14.6
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
       - name: Repeat real JetStream leader failure, rebind and quorum-loss drill
         run: go test -race -count=3 -timeout 360s -run '^TestDisposableThreeNodeJetStreamLeaderFailover$' ./...
