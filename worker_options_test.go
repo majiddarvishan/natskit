@@ -116,7 +116,6 @@ func TestQuarantineBuilderPanicIsNotAnAcknowledgment(t *testing.T) {
 	}
 }
 
-
 func TestDeliveryEventIncludesActualPayloadBytes(t *testing.T) {
 	var observed DeliveryEvent
 	options := WorkerOptions{Observe: func(event DeliveryEvent) { observed = event }}
