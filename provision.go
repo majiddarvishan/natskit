@@ -149,7 +149,6 @@ func unlimitedLimit(value int64) int64 {
 	return value
 }
 
-
 // validateExternalConsumerStreams verifies receiver-owned Streams without
 // reconciling their configuration. External streams must exist, capture every
 // declared consumer filter, and remain disjoint from all managed Stream

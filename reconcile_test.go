@@ -346,7 +346,6 @@ func TestDisposableSubjectReplacementPreflightStillBlocksConsumerDrift(t *testin
 	}
 }
 
-
 // externalConsumerFixture configures one durable worker against a stream owned
 // by a separate application. Only that consumer is external; all other
 // resources remain managed by this service.
